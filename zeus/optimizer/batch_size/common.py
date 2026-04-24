@@ -54,34 +54,19 @@ class JobParams(BaseModel):
 
     @validator("batch_sizes")
     def _validate_batch_sizes(cls, bs: list[int]) -> list[int]:
-        if bs is not None and len(bs) > 0:
-            bs.sort()
-            return bs
-        else:
-            raise ValueError(f"Batch Sizes = {bs} is empty")
+        pass
 
     @validator("eta_knob")
     def _validate_eta_knob(cls, v: float) -> float:
-        if v < 0 or v > 1:
-            raise ValueError("eta_knob should be in range [0,1]")
-        return v
+        pass
 
     @validator("beta_knob")
     def _validate_beta_knob(cls, v: float) -> float:
-        if v is None or v > 0:
-            return v
-        else:
-            raise ValueError(
-                f"Invalid beta_knob({v}). To disable early stop, set beta_knob = None to disable or positive value."
-            )
+        pass
 
     @root_validator(skip_on_failure=True)
     def _check_default_batch_size(cls, values: dict[str, Any]) -> dict[str, Any]:
-        bs = values["default_batch_size"]
-        bss = values["batch_sizes"]
-        if bs not in bss:
-            raise ValueError(f"Default BS({bs}) not in batch_sizes({bss}).")
-        return values
+        pass
 
 
 class GpuConfig(BaseModel):
@@ -93,10 +78,7 @@ class GpuConfig(BaseModel):
 
     @validator("gpu_model")
     def _validate_gpu_model(cls, v: str) -> str:
-        if v is None or v == "":
-            raise ValueError(f"Invalid gpu_model({v}). Shouldn't be empty.")
-        else:
-            return v
+        pass
 
 
 class JobSpec(JobParams):
@@ -112,12 +94,7 @@ class JobSpec(JobParams):
 
     @root_validator(skip_on_failure=True)
     def _check_job_id(cls, values: dict[str, Any]) -> dict[str, Any]:
-        job_id: str | None = values.get("job_id")
-        prefix: str = values["job_id_prefix"]
-
-        if job_id is not None and not job_id.startswith(prefix):
-            raise ValueError(f"Job_id({job_id}) does not start with prefix({prefix}).")
-        return values
+        pass
 
 
 class JobSpecFromClient(JobSpec, GpuConfig):

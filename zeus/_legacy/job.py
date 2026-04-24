@@ -37,27 +37,15 @@ class Job:
 
     def __str__(self) -> str:
         """Generate a more conside representation of the object."""
-        return (
-            f"Job({self.dataset},{self.network},{self.optimizer},{self.target_metric}"
-            f"{f',bs{self.default_bs}' if self.default_bs is not None else ''}~{self.max_epochs})"
-        )
+        raise NotImplementedError
 
     def to_logdir(self) -> str:
         """Generate a logdir name that explains this job."""
-        return (
-            f"{self.dataset}+{self.network}+bs{self.default_bs}"
-            f"+{self.optimizer}+lr{self.default_lr}"
-            f"+tm{self.target_metric}+me{self.max_epochs}"
-        )
+        pass
 
     def filter_df(self, df: pd.DataFrame) -> pd.DataFrame:
         """Pick out the rows corresponding to this job from the DataFrame."""
-        return df.loc[
-            (df.dataset == self.dataset)
-            & (df.network == self.network)
-            & (df.optimizer == self.optimizer)
-            & (df.target_metric == self.target_metric)
-        ]
+        pass
 
     def gen_command(
         self,
@@ -74,24 +62,7 @@ class Job:
             seed: Random seed to use for this job launch.
             rec_i: Recurrence number of this job launch.
         """
-        assert self.command, "You must provide a command format string for this job."
-        command = []
-        for piece in self.command:
-            if piece in ["{bs}", "{batch_size}"]:
-                command.append(str(batch_size))
-            elif piece in ["{lr}", "{learning_rate}"]:
-                command.append(str(learning_rate))
-            elif piece == "{seed}":
-                command.append(str(seed))
-            elif piece in ["{epoch}", "{epochs}"]:
-                command.append(str(self.max_epochs))
-            elif piece == "{slice_number}":
-                command.append(str(rec_i))
-            elif piece == "{target_metric}":
-                command.append(str(self.target_metric))
-            else:
-                command.append(piece)
-        return command
+        pass
 
     def scale_lr(self, batch_size: int) -> float:
         """Scale the learning rate for the given batch size.
@@ -101,14 +72,4 @@ class Job:
         square root scaling for adaptive optimizers (e.g. Adam, Adadelta,
         AdamW) and linear scaling for others (e.g. SGD).
         """
-        assert self.default_bs, "You must provide default_bs to scale LR."
-        assert self.default_lr, "You must provide default_lr to scale LR."
-
-        optimizer = self.optimizer.lower()
-        if optimizer in ["adam", "adadelta", "adamw"]:
-            scaler = SquareRootScaler(bs=self.default_bs, lr=self.default_lr)
-            return scaler.compute_lr(batch_size)
-        if optimizer in ["sgd"]:
-            scaler = LinearScaler(bs=self.default_bs, lr=self.default_lr)
-            return scaler.compute_lr(batch_size)
-        raise NotImplementedError(f"LR scaling for {self.optimizer} is not supported.")
+        pass

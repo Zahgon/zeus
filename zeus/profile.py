@@ -81,7 +81,7 @@ _DEFAULT_SEARCH_RANGE = [float(x) for x in range(1, 11)]
 
 def _is_rank_zero() -> bool:
     """Return True when not distributed or when this is rank 0."""
-    return get_rank() == 0
+    pass
 
 
 @dataclass
@@ -137,16 +137,7 @@ class SweepResult:
 
     def __str__(self) -> str:
         """One-line summary without per-trial details."""
-        tag = "VALID" if self.is_valid else "INVALID"
-        return (
-            f"measurement={self.measurement_duration:.1f} s  "
-            f"cooldown={self.cooldown_duration:.1f} s  "
-            f"mean={self.energy_mean:.4f} J  "
-            f"std={self.energy_std:.4f} J  "
-            f"temp_before={self.avg_temperature_before:.1f} \u00b0C  "
-            f"temp_after={self.avg_temperature_after:.1f} \u00b0C  "
-            f"[{tag}]"
-        )
+        raise NotImplementedError
 
 
 @dataclass
@@ -165,22 +156,7 @@ class SweepReport:
 
     def __str__(self) -> str:
         """Multi-line summary: one line per swept value."""
-        sweep_name, _ = self.sweep_param
-        fixed_name, fixed_value = self.fixed_param
-        prefixes = [f"{sweep_name}={getattr(e, sweep_name):.1f} s" for e in self.entries]
-        max_prefix_len = max(len(p) for p in prefixes)
-        lines = [f"Sweep {sweep_name} (fixed {fixed_name}={fixed_value:.1f} s):"]
-        for prefix, e in zip(prefixes, self.entries):
-            tag = "VALID" if e.is_valid else "INVALID"
-            lines.append(
-                f"  {prefix:<{max_prefix_len}}  "
-                f"mean={e.energy_mean:.4f} J  "
-                f"std={e.energy_std:.4f} J  "
-                f"temp_before={e.avg_temperature_before:.1f} \u00b0C  "
-                f"temp_after={e.avg_temperature_after:.1f} \u00b0C  "
-                f"[{tag}]"
-            )
-        return "\n".join(lines)
+        raise NotImplementedError
 
 
 def _calibrate_iteration_duration(
@@ -190,27 +166,12 @@ def _calibrate_iteration_duration(
     num_calibration_iterations: int,
 ) -> float:
     """Warm up *target_function* and measure per-iteration execution time."""
-    for _ in range(num_warmup_iterations):
-        target_function()
-
-    sync_execution(zeus_monitor.gpu_indices, sync_with=zeus_monitor.sync_with)
-    start = time.monotonic()
-    for _ in range(num_calibration_iterations):
-        target_function()
-    sync_execution(zeus_monitor.gpu_indices, sync_with=zeus_monitor.sync_with)
-    elapsed = time.monotonic() - start
-
-    iteration_duration = elapsed / num_calibration_iterations
-    [iteration_duration] = all_reduce([iteration_duration], "max")
-    logger.info("Calibrated iteration duration: %.3f ms", iteration_duration * 1000)
-    return iteration_duration
+    pass
 
 
 def _read_avg_gpu_temperature(zeus_monitor: ZeusMonitor) -> float:
     """Return the mean GPU temperature (deg C) across all monitored GPUs."""
-    temps = [zeus_monitor.gpus.get_gpu_temperature(idx) for idx in zeus_monitor.gpu_indices]
-    assert temps, "ZeusMonitor is monitoring zero GPUs."
-    return sum(temps) / len(temps)
+    pass
 
 
 def _run_trial(
@@ -222,38 +183,7 @@ def _run_trial(
     iteration_duration: float,
 ) -> TrialResult:
     """Execute one trial: cooldown -> warmup -> measure."""
-    iterations = max(1, int(measurement_duration / iteration_duration))
-
-    if cooldown_duration > 0:
-        time.sleep(cooldown_duration)
-
-    temperature_before = _read_avg_gpu_temperature(zeus_monitor)
-
-    for _ in range(num_warmup_iterations):
-        target_function()
-
-    zeus_monitor.begin_window("__zeus_profile_run_trial")
-    for _ in range(iterations):
-        target_function()
-    result = zeus_monitor.end_window("__zeus_profile_run_trial")
-
-    temperature_after = _read_avg_gpu_temperature(zeus_monitor)
-
-    [total_energy] = all_reduce([result.total_energy], "sum")
-    [total_time] = all_reduce([result.time], "max")
-    [temp_before_sum] = all_reduce([temperature_before], "sum")
-    [temp_after_sum] = all_reduce([temperature_after], "sum")
-    world_size = get_world_size()
-
-    return TrialResult(
-        energy_per_iter=total_energy / iterations,
-        time_per_iter=total_time / iterations,
-        total_energy=total_energy,
-        total_time=total_time,
-        iterations=iterations,
-        temperature_before=temp_before_sum / world_size,
-        temperature_after=temp_after_sum / world_size,
-    )
+    pass
 
 
 def _build_sweep_result(
@@ -263,21 +193,7 @@ def _build_sweep_result(
     trial_stddev_threshold: float,
 ) -> SweepResult:
     """Aggregate trial results into a [`SweepResult`][zeus.profile.SweepResult]."""
-    energies = [t.energy_per_iter for t in trials]
-    n = len(trials)
-    e_std = statistics.stdev(energies) if n >= 2 else 0.0
-    return SweepResult(
-        measurement_duration=measurement_duration,
-        cooldown_duration=cooldown_duration,
-        trials=trials,
-        energy_mean=statistics.mean(energies),
-        energy_std=e_std,
-        avg_temperature_before=sum(t.temperature_before for t in trials) / n,
-        avg_temperature_after=sum(t.temperature_after for t in trials) / n,
-        avg_total_time=sum(t.total_time for t in trials) / n,
-        avg_total_energy=sum(t.total_energy for t in trials) / n,
-        is_valid=e_std < trial_stddev_threshold,
-    )
+    pass
 
 
 def _sweep(
@@ -297,58 +213,7 @@ def _sweep(
     Warmup trials skip cooldown and warmup iterations and use the maximum
     measurement duration.
     """
-    is_cooldown_sweep = sweep_type == "cooldown_duration"
-
-    if num_warmup_trials > 0:
-        warmup_cooldown = 0.0
-        warmup_measure = fixed_value if is_cooldown_sweep else max(sweep_values)
-        warmup_warmup_iterations = 0
-        if _is_rank_zero():
-            logger.info("Running %d warmup trial(s)", num_warmup_trials)
-        for i in range(num_warmup_trials):
-            _run_trial(
-                target_function=target_function,
-                zeus_monitor=zeus_monitor,
-                cooldown_duration=warmup_cooldown,
-                measurement_duration=warmup_measure,
-                num_warmup_iterations=warmup_warmup_iterations,
-                iteration_duration=iteration_duration,
-            )
-            if _is_rank_zero():
-                logger.info("Warmup trial %d/%d done", i + 1, num_warmup_trials)
-
-    entries: list[SweepResult] = []
-    for val in sweep_values:
-        cooldown_dur = val if is_cooldown_sweep else fixed_value
-        measure_dur = fixed_value if is_cooldown_sweep else val
-
-        if _is_rank_zero():
-            logger.info("Starting %s=%.1f s  [%d trials]", sweep_type, val, num_trials)
-
-        trials: list[TrialResult] = []
-        for trial_idx in range(num_trials):
-            trial = _run_trial(
-                target_function=target_function,
-                zeus_monitor=zeus_monitor,
-                cooldown_duration=cooldown_dur,
-                measurement_duration=measure_dur,
-                num_warmup_iterations=num_warmup_iterations,
-                iteration_duration=iteration_duration,
-            )
-            trials.append(trial)
-            if _is_rank_zero():
-                logger.info("Trial %d/%d done", trial_idx + 1, num_trials)
-
-        entry = _build_sweep_result(measure_dur, cooldown_dur, trials, trial_stddev_threshold)
-        entries.append(entry)
-
-    swept_name = "cooldown_duration" if is_cooldown_sweep else "measurement_duration"
-    fixed_name = "measurement_duration" if is_cooldown_sweep else "cooldown_duration"
-    return SweepReport(
-        sweep_param=(swept_name, sweep_values),
-        fixed_param=(fixed_name, fixed_value),
-        entries=entries,
-    )
+    pass
 
 
 def profile_measurement_duration(
@@ -381,29 +246,7 @@ def profile_measurement_duration(
         iteration_duration: Pre-calibrated iteration duration (seconds).  If `None`,
             calibration runs automatically.
     """
-    search_range = measurement_duration_search_range or _DEFAULT_SEARCH_RANGE
-    if iteration_duration is None:
-        iteration_duration = _calibrate_iteration_duration(
-            target_function, zeus_monitor, num_warmup_iterations, num_calibration_iterations
-        )
-
-    if _is_rank_zero():
-        logger.info("Sweeping measurement_duration (cooldown fixed at %.1f s)", cooldown_duration)
-    report = _sweep(
-        target_function=target_function,
-        zeus_monitor=zeus_monitor,
-        sweep_values=search_range,
-        fixed_value=cooldown_duration,
-        sweep_type="measurement_duration",
-        num_trials=num_trials,
-        trial_stddev_threshold=trial_stddev_threshold,
-        num_warmup_iterations=num_warmup_iterations,
-        iteration_duration=iteration_duration,
-        num_warmup_trials=num_warmup_trials,
-    )
-    if _is_rank_zero():
-        logger.info("%s", report)
-    return report
+    pass
 
 
 def profile_cooldown_duration(
@@ -437,29 +280,7 @@ def profile_cooldown_duration(
         iteration_duration: Pre-calibrated iteration duration (seconds).  If `None`,
             calibration runs automatically.
     """
-    search_range = cooldown_duration_search_range or _DEFAULT_SEARCH_RANGE
-    if iteration_duration is None:
-        iteration_duration = _calibrate_iteration_duration(
-            target_function, zeus_monitor, num_warmup_iterations, num_calibration_iterations
-        )
-
-    if _is_rank_zero():
-        logger.info("Sweeping cooldown_duration (measurement fixed at %.1f s)", measurement_duration)
-    report = _sweep(
-        target_function=target_function,
-        zeus_monitor=zeus_monitor,
-        sweep_values=search_range,
-        fixed_value=measurement_duration,
-        sweep_type="cooldown_duration",
-        num_trials=num_trials,
-        trial_stddev_threshold=trial_stddev_threshold,
-        num_warmup_iterations=num_warmup_iterations,
-        iteration_duration=iteration_duration,
-        num_warmup_trials=num_warmup_trials,
-    )
-    if _is_rank_zero():
-        logger.info("%s", report)
-    return report
+    pass
 
 
 def profile_parameters(
@@ -502,38 +323,7 @@ def profile_parameters(
     Returns:
         `(measurement_sweep_report, cooldown_sweep_report)`
     """
-    m_range = measurement_duration_search_range or _DEFAULT_SEARCH_RANGE
-    c_range = cooldown_duration_search_range or _DEFAULT_SEARCH_RANGE
-
-    iteration_duration = _calibrate_iteration_duration(
-        target_function, zeus_monitor, num_warmup_iterations, num_calibration_iterations
-    )
-
-    measurement_report = profile_measurement_duration(
-        target_function=target_function,
-        zeus_monitor=zeus_monitor,
-        measurement_duration_search_range=m_range,
-        cooldown_duration=max(c_range),
-        num_trials=num_trials,
-        trial_stddev_threshold=trial_stddev_threshold,
-        num_warmup_iterations=num_warmup_iterations,
-        iteration_duration=iteration_duration,
-        num_warmup_trials=num_warmup_trials,
-    )
-
-    cooldown_report = profile_cooldown_duration(
-        target_function=target_function,
-        zeus_monitor=zeus_monitor,
-        cooldown_duration_search_range=c_range,
-        measurement_duration=max(m_range),
-        num_trials=num_trials,
-        trial_stddev_threshold=trial_stddev_threshold,
-        num_warmup_iterations=num_warmup_iterations,
-        iteration_duration=iteration_duration,
-        num_warmup_trials=0,
-    )
-
-    return measurement_report, cooldown_report
+    pass
 
 
 def measure(
@@ -554,15 +344,4 @@ def measure(
         num_warmup_iterations: Warm-up iterations before the measurement.
         num_calibration_iterations: Iterations used to estimate per-iteration time.
     """
-    iteration_duration = _calibrate_iteration_duration(
-        target_function, zeus_monitor, num_warmup_iterations, num_calibration_iterations
-    )
-
-    return _run_trial(
-        target_function=target_function,
-        zeus_monitor=zeus_monitor,
-        cooldown_duration=cooldown_duration,
-        measurement_duration=measurement_duration,
-        num_warmup_iterations=num_warmup_iterations,
-        iteration_duration=iteration_duration,
-    )
+    pass

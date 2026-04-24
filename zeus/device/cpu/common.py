@@ -31,14 +31,7 @@ class CpuDramMeasurement:
         Returns:
             CpuDramMeasurement: A new CpuDramMeasurement with the result of the subtraction.
         """
-        dram_mj = None
-        if self.dram_mj is not None and other.dram_mj is not None:
-            dram_mj = self.dram_mj - other.dram_mj
-        elif self.dram_mj is not None:
-            dram_mj = self.dram_mj
-        elif other.dram_mj is not None:
-            dram_mj = -other.dram_mj
-        return CpuDramMeasurement(self.cpu_mj - other.cpu_mj, dram_mj)
+        raise NotImplementedError
 
     def __truediv__(self, other: int | float) -> CpuDramMeasurement:
         """Divides the values of this CpuDramMeasurement by a float.
@@ -52,15 +45,7 @@ class CpuDramMeasurement:
         Raises:
             ZeroDivisionError: If division by zero is attempted.
         """
-        if isinstance(other, (int, float)):
-            if other == 0:
-                raise ZeroDivisionError("Division by zero is not allowed")
-            dram_mj = None
-            if self.dram_mj is not None:
-                dram_mj = self.dram_mj / other
-            return CpuDramMeasurement(self.cpu_mj / other, dram_mj)
-        else:
-            return NotImplemented
+        raise NotImplementedError
 
 
 class ZeusCPUInitError(ZeusBaseCPUError):
@@ -68,7 +53,7 @@ class ZeusCPUInitError(ZeusBaseCPUError):
 
     def __init__(self, message: str) -> None:
         """Initialize Zeus Exception."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusCPUNoPermissionError(ZeusBaseCPUError):
@@ -76,7 +61,7 @@ class ZeusCPUNoPermissionError(ZeusBaseCPUError):
 
     def __init__(self, message: str) -> None:
         """Initialize Zeus Exception."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusCPUNotFoundError(ZeusBaseCPUError):
@@ -84,7 +69,7 @@ class ZeusCPUNotFoundError(ZeusBaseCPUError):
 
     def __init__(self, message: str) -> None:
         """Initialize Zeus Exception."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class CPU(abc.ABC, metaclass=DeprecatedAliasABCMeta):
@@ -95,7 +80,7 @@ class CPU(abc.ABC, metaclass=DeprecatedAliasABCMeta):
 
     def __init__(self, cpu_index: int) -> None:
         """Initialize the CPU with a specified index."""
-        self.cpu_index = cpu_index
+        raise NotImplementedError
 
     @deprecated_alias("getTotalEnergyConsumption")
     @abc.abstractmethod
@@ -136,16 +121,16 @@ class CPUs(abc.ABC, metaclass=DeprecatedAliasABCMeta):
     @deprecated_alias("getTotalEnergyConsumption")
     def get_total_energy_consumption(self, index: int) -> CpuDramMeasurement:
         """Returns the total energy consumption of the specified powerzone. Units: mJ."""
-        return self.cpus[index].get_total_energy_consumption()
+        raise NotImplementedError
 
     @deprecated_alias("supportsGetDramEnergyConsumption")
     def supports_get_dram_energy_consumption(self, index: int) -> bool:
         """Returns True if the specified CPU powerzone supports retrieving the subpackage energy consumption."""
-        return self.cpus[index].supports_get_dram_energy_consumption()
+        raise NotImplementedError
 
     def __len__(self) -> int:
         """Returns the number of CPUs being tracked."""
-        return len(self.cpus)
+        raise NotImplementedError
 
 
 class EmptyCPUs(CPUs):
@@ -165,17 +150,17 @@ class EmptyCPUs(CPUs):
     @property
     def cpus(self) -> Sequence[CPU]:
         """Returns a list of CPU objects being tracked."""
-        return []
+        pass
 
     @deprecated_alias("getTotalEnergyConsumption")
     def get_total_energy_consumption(self, index: int) -> CpuDramMeasurement:
         """Returns the total energy consumption of the specified powerzone. Units: mJ."""
-        raise ValueError("No CPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("supportsGetDramEnergyConsumption")
     def supports_get_dram_energy_consumption(self, index: int) -> bool:
         """Returns True if the specified CPU powerzone supports retrieving the subpackage energy consumption."""
-        raise ValueError("No CPUs available.")
+        raise NotImplementedError
 
     def __len__(self) -> int:
         """Returns 0 since the object is empty."""

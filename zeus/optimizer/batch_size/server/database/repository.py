@@ -13,4 +13,4 @@ class DatabaseRepository:
 
     def __init__(self, session: AsyncSession) -> None:
         """Initizalize session."""
-        self.session = session
+        raise NotImplementedError

@@ -53,8 +53,7 @@ class Measurement:
     @cached_property
     def total_energy(self) -> float:
         """Total energy consumed (in Joules) during the measurement window."""
-        # TODO: Update method to total_gpu_energy, which may cause breaking changes in the examples/
-        return sum(self.gpu_energy.values())
+        pass
 
 
 @dataclass
@@ -85,7 +84,7 @@ class MeasurementState:
     @cached_property
     def total_energy(self) -> float:
         """Total energy consumed (in Joules) during the measurement window."""
-        return sum(self.gpu_energy.values())
+        pass
 
 
 class ZeusMonitor:
@@ -180,93 +179,11 @@ class ZeusMonitor:
                 Defaults to `"torch"`, in which case `torch.cuda.synchronize` will be used.
                 See [`sync_execution`][zeus.utils.framework.sync_execution] for more details.
         """
-        # Warn if instantiated as a global variable in a subprocess.
-        warn_if_global_in_subprocess(self)
-
-        # Save arguments.
-        self.approx_instant_energy = approx_instant_energy
-        self.sync_with: Literal["torch", "jax", "cupy"] = sync_execution_with
-
-        # Get GPU instances.
-        try:
-            self.gpus = get_gpus()
-        except ZeusGPUInitError:
-            self.gpus = EmptyGPUs()
-
-        # Get CPU instance.
-        try:
-            self.cpus = get_cpus()
-        except ZeusCPUInitError:
-            self.cpus = EmptyCPUs()
-        except ZeusCPUNoPermissionError as err:
-            if cpu_indices:
-                raise RuntimeError(
-                    "Root privilege is required to read RAPL metrics. See "
-                    "https://ml.energy/zeus/getting_started/#system-privileges "
-                    "for more information or disable CPU measurement by passing cpu_indices=[] to "
-                    "ZeusMonitor"
-                ) from err
-            self.cpus = EmptyCPUs()
-
-        # Get an SoC instance, if an SoC is present on the host device.
-        self.soc_is_present = False
-        try:
-            self.soc = get_soc()
-            self.soc_is_present = True
-        except ZeusSoCInitError:
-            self.soc = EmptySoC()
-
-        # Resolve GPU indices. If the user did not specify `gpu_indices`, use all available GPUs.
-        self.gpu_indices = gpu_indices if gpu_indices is not None else list(range(len(self.gpus)))
-
-        # Resolve CPU indices. If the user did not specify `cpu_indices`, use all available CPUs.
-        self.cpu_indices = cpu_indices if cpu_indices is not None else list(range(len(self.cpus)))
-
-        logger.info("Monitoring GPU indices %s.", self.gpu_indices)
-        logger.info("Monitoring CPU indices %s", self.cpu_indices)
-
-        # Initialize loggers.
-        if log_file is None:
-            self.log_file = None
-        else:
-            if dir := os.path.dirname(log_file):
-                os.makedirs(dir, exist_ok=True)
-            self.log_file = open(log_file, "w")
-            logger.info("Writing measurement logs to %s.", log_file)
-            self.log_file.write(
-                f"start_time,window_name,elapsed_time,{','.join(map(lambda i: f'gpu{i}_energy', self.gpu_indices))}\n",
-            )
-            self.log_file.flush()
-
-        # A dictionary that maps the string keys of active measurement windows to
-        # the state of the measurement window. Each element in the dictionary is a Measurement State
-        # object with:
-        #     1) Time elapsed at the beginning of this window.
-        #     2) Total energy consumed by each >= Volta GPU at the beginning of
-        #        this window (`None` for older GPUs).
-        #     3) Total energy consumed by each CPU powerzone at the beginning of this window.
-        #        ('None' if CPU measurement is not supported)
-        #     4) Total energy consumed by each DRAM in powerzones at the beginning of this window.
-        #        ('None' if DRAM measurement is not supported)
-        self.measurement_states: dict[str, MeasurementState] = {}
-
-        # Initialize power monitors for older architecture GPUs.
-        old_gpu_indices = [
-            gpu_index
-            for gpu_index in self.gpu_indices
-            if not self.gpus.supports_get_total_energy_consumption(gpu_index)
-        ]
-        if old_gpu_indices:
-            self.power_monitor = PowerMonitor(gpu_indices=old_gpu_indices, update_period=None)
-        else:
-            self.power_monitor = None
+        raise NotImplementedError
 
     def _get_instant_power(self) -> tuple[dict[int, float], float]:
         """Measure the power consumption of all GPUs at the current time."""
-        power_measurement_start_time: float = time()
-        power = {i: self.gpus.get_instant_power_usage(i) / 1000.0 for i in self.gpu_indices}
-        power_measurement_time = time() - power_measurement_start_time
-        return power, power_measurement_time
+        raise NotImplementedError
 
     def begin_window(self, key: str, sync_execution: bool = True, restart: bool = False) -> None:
         """Begin a new measurement window.
@@ -283,46 +200,7 @@ class ZeusMonitor:
                 Jupyter notebooks where a cell may crash between `begin_window` and
                 `end_window`, leaving the window in a stale state.
         """
-        # Handle an existing window with the same key.
-        if key in self.measurement_states:
-            if not restart:
-                raise ValueError(f"Measurement window '{key}' already exists")
-            self.measurement_states.pop(key)
-            logger.info("Measurement window '%s' restarted.", key)
-
-        # Synchronize execution (e.g., cudaSynchronize) to freeze at the right time.
-        if sync_execution and self.gpu_indices:
-            sync_execution_fn(self.gpu_indices, sync_with=self.sync_with)
-
-        # Freeze the start time of the profiling window.
-        timestamp: float = time()
-        gpu_energy_state: dict[int, float] = {}
-        for gpu_index in self.gpu_indices:
-            # Query energy directly if the GPU has newer architecture.
-            # Otherwise, the Zeus power monitor is running in the background to
-            # collect power consumption, so we just need to read the log file later.
-            if self.gpus.supports_get_total_energy_consumption(gpu_index):
-                gpu_energy_state[gpu_index] = self.gpus.get_total_energy_consumption(gpu_index) / 1000.0
-
-        cpu_energy_state: dict[int, float] = {}
-        dram_energy_state: dict[int, float] = {}
-        for cpu_index in self.cpu_indices:
-            cpu_measurement = self.cpus.get_total_energy_consumption(cpu_index) / 1000.0
-            cpu_energy_state[cpu_index] = cpu_measurement.cpu_mj
-            if cpu_measurement.dram_mj is not None:
-                dram_energy_state[cpu_index] = cpu_measurement.dram_mj
-
-        if self.soc_is_present:
-            self.soc.begin_window(key, restart=restart)
-
-        # Add measurement state to dictionary.
-        self.measurement_states[key] = MeasurementState(
-            time=timestamp,
-            gpu_energy=gpu_energy_state,
-            cpu_energy=cpu_energy_state or None,
-            dram_energy=dram_energy_state or None,
-        )
-        logger.debug("Measurement window '%s' started.", key)
+        raise NotImplementedError
 
     def end_window(self, key: str, sync_execution: bool = True, cancel: bool = False) -> Measurement:
         """End a measurement window and return the time and energy consumption.
@@ -339,137 +217,11 @@ class ZeusMonitor:
                 object will be returned and the measurement window will not be recorded in
                 the log file either. `sync_execution` is still respected.
         """
-        # Retrieve the start time and energy consumption of this window.
-        try:
-            measurement_state = self.measurement_states.pop(key)
-        except KeyError:
-            raise ValueError(f"Measurement window '{key}' does not exist") from None
-
-        # If we're also tracking an SoC, end its window.
-        soc_energy_consumption: SoCMeasurement | None = None
-        if self.soc_is_present:
-            soc_energy_consumption = self.soc.end_window(key)
-
-        # Take instant power consumption measurements.
-        # This, in theory, is introducing extra NVMLs call in the critical path
-        # even if computation time is not so short. However, it is reasonable to
-        # expect that computation time would be short if the user explicitly
-        # turned on the `approx_instant_energy` option. Calling this function
-        # as early as possible will lead to more accurate energy approximation.
-        power, power_measurement_time = self._get_instant_power() if self.approx_instant_energy else ({}, 0.0)
-
-        # Synchronize execution (e.g., cudaSynchronize) to freeze at the right time.
-        if sync_execution and self.gpu_indices:
-            sync_execution_fn(self.gpu_indices, sync_with=self.sync_with)
-
-        # If the measurement window is cancelled, return an empty Measurement object.
-        if cancel:
-            logger.debug("Measurement window '%s' cancelled.", key)
-
-            # If we had a non-None SoC measurement object to report, empty its fields.
-            if soc_energy_consumption is not None:
-                soc_energy_consumption.zero_all_fields()
-
-            return Measurement(
-                time=0.0,
-                gpu_energy={gpu: 0.0 for gpu in self.gpu_indices},
-                cpu_energy={cpu: 0.0 for cpu in self.cpu_indices},
-                soc_energy=soc_energy_consumption,
-            )
-
-        end_time: float = time()
-        start_time = measurement_state.time
-        gpu_start_energy = measurement_state.gpu_energy
-        cpu_start_energy = measurement_state.cpu_energy
-        dram_start_energy = measurement_state.dram_energy
-
-        time_consumption: float = end_time - start_time
-        gpu_energy_consumption: dict[int, float] = {}
-        for gpu_index in self.gpu_indices:
-            # Query energy directly if the GPU has newer architecture.
-            if self.gpus.supports_get_total_energy_consumption(gpu_index):
-                end_energy = self.gpus.get_total_energy_consumption(gpu_index) / 1000.0
-                gpu_energy_consumption[gpu_index] = end_energy - gpu_start_energy[gpu_index]
-
-        cpu_energy_consumption: dict[int, float] = {}
-        dram_energy_consumption: dict[int, float] = {}
-        for cpu_index in self.cpu_indices:
-            cpu_measurement = self.cpus.get_total_energy_consumption(cpu_index) / 1000.0
-            if cpu_start_energy is not None:
-                cpu_energy_consumption[cpu_index] = cpu_measurement.cpu_mj - cpu_start_energy[cpu_index]
-            if dram_start_energy is not None and cpu_measurement.dram_mj is not None:
-                dram_energy_consumption[cpu_index] = cpu_measurement.dram_mj - dram_start_energy[cpu_index]
-
-        # If there are older GPU architectures, the PowerMonitor will take care of those.
-        if self.power_monitor is not None:
-            energy = self.power_monitor.get_energy(start_time, end_time)
-            # Fallback to the instant power measurement if the PowerMonitor does not
-            # have the power samples.
-            if energy is None:
-                energy = {}
-                for gpu_index in self.power_monitor.gpu_indices:
-                    energy[gpu_index] = power[gpu_index] * (time_consumption - power_measurement_time)
-            gpu_energy_consumption |= energy
-
-        # Approximate energy consumption if the measurement window is too short.
-        if self.approx_instant_energy:
-            for gpu_index in self.gpu_indices:
-                if gpu_energy_consumption[gpu_index] == 0.0:
-                    gpu_energy_consumption[gpu_index] = power[gpu_index] * (time_consumption - power_measurement_time)
-
-        # Trigger a warning if energy consumption is zero and approx_instant_energy is not enabled.
-        if not self.approx_instant_energy and any(energy == 0.0 for energy in gpu_energy_consumption.values()):
-            warnings.warn(
-                "The energy consumption of one or more GPUs was measured as zero. This means that the time duration of the measurement window was shorter than the GPU's energy counter update period. Consider turning on the `approx_instant_energy` option in `ZeusMonitor`, which approximates the energy consumption of a short time window as instant power draw x window duration.",
-                stacklevel=1,
-            )
-
-        logger.debug("Measurement window '%s' ended.", key)
-
-        # Add to log file.
-        if self.log_file is not None:
-            self.log_file.write(
-                f"{start_time},{key},{time_consumption},"
-                + ",".join(str(gpu_energy_consumption[gpu]) for gpu in self.gpu_indices)
-                + "\n"
-            )
-            self.log_file.flush()
-
-        return Measurement(
-            time=time_consumption,
-            gpu_energy=gpu_energy_consumption,
-            cpu_energy=cpu_energy_consumption or None,
-            dram_energy=dram_energy_consumption or None,
-            soc_energy=soc_energy_consumption,
-        )
+        raise NotImplementedError
 
     def reset_windows(self) -> None:
         """Reset the monitor by removing all active measurement windows.
 
         Any ongoing measurements will be cancelled and their data will be lost.
         """
-        # Get list of active measurement windows
-        active_windows = list(self.measurement_states.keys())
-
-        # Cancel all active SoC windows first (if SoC is present)
-        if self.soc_is_present:
-            for window_key in active_windows:
-                try:
-                    # End the SoC window and zero its fields to cancel it
-                    soc_measurement = self.soc.end_window(window_key)
-                    if soc_measurement is not None:
-                        soc_measurement.zero_all_fields()
-                except Exception as e:
-                    logger.warning(
-                        "Failed to cancel SoC window '%s' during reset: %s",
-                        window_key,
-                        e,
-                    )
-
-        # Clear all measurement states
-        self.measurement_states.clear()
-
-        if active_windows:
-            logger.info("ZeusMonitor reset dropped active windows: %s", active_windows)
-        else:
-            logger.info("ZeusMonitor reset with no active windows to drop.")
+        pass

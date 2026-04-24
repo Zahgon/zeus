@@ -24,19 +24,9 @@ def create_task(
         logger: The logger to be used for logging exceptions. If `None`, the
             the logger with the name `zeus.utils.async_utils` is used.
     """
-    loop = asyncio.get_running_loop()
-    task = loop.create_task(coroutine)
-    task.add_done_callback(functools.partial(_handle_task_exception, logger=logger or default_logger))
-    return task
+    raise NotImplementedError
 
 
 def _handle_task_exception(task: asyncio.Task, logger: logging.Logger) -> None:
     """Print out exception and tracebook when a task dies with an exception."""
-    try:
-        task.result()
-    except asyncio.CancelledError:
-        # Cancellation should not be logged as an error.
-        pass
-    except Exception:
-        # `logger.exception` automatically handles exception and traceback info.
-        logger.exception("Job task died with an exception!")
+    pass

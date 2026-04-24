@@ -6,9 +6,8 @@ class ZeusBaseError(Exception):
 
     def __init__(self, message: str) -> None:
         """Initialize Base Zeus Exception."""
-        self.message = message
-        super().__init__(message)
+        raise NotImplementedError
 
     def __str__(self) -> str:
         """Return message."""
-        return self.message
+        raise NotImplementedError

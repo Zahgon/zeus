@@ -14,7 +14,7 @@ class ZeusSoCInitError(ZeusBaseSoCError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 @dataclass
@@ -98,7 +98,7 @@ class EmptySoC(SoC):
     @deprecated_alias("getAvailableMetrics")
     def get_available_metrics(self) -> set[str]:
         """Return a set of all observable metrics on the current processor."""
-        return set()
+        raise NotImplementedError
 
     @deprecated_alias("getTotalEnergyConsumption")
     def get_total_energy_consumption(self) -> SoCMeasurement:
@@ -109,14 +109,14 @@ class EmptySoC(SoC):
 
         Units: mJ.
         """
-        raise ValueError("No SoC is available.")
+        raise NotImplementedError
 
     @deprecated_alias("beginWindow")
     def begin_window(self, key: str, restart: bool = False) -> None:
         """Begin a measurement interval labeled with `key`."""
-        raise ValueError("No SoC is available.")
+        raise NotImplementedError
 
     @deprecated_alias("endWindow")
     def end_window(self, key: str) -> SoCMeasurement:
         """End a measurement window and return the energy consumption. Units: mJ."""
-        raise ValueError("No SoC is available.")
+        raise NotImplementedError

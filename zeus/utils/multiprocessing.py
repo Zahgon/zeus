@@ -19,20 +19,7 @@ def _is_global_in_spawned_child() -> bool:
     file (not multiprocessing infrastructure like <string> or <frozen ...>) where
     the module's `__name__` is `"__mp_main__"`.
     """
-    frame = inspect.currentframe()
-    if frame is None:
-        return False
-    frame = frame.f_back
-    while frame is not None:
-        if frame.f_code.co_name == "<module>":
-            filename = frame.f_code.co_filename
-            # Skip multiprocessing infrastructure frames
-            if not (filename == "<string>" or filename.startswith("<frozen")):
-                module_name = frame.f_globals.get("__name__", "")
-                if module_name == "__mp_main__":
-                    return True
-        frame = frame.f_back
-    return False
+    raise NotImplementedError
 
 
 def warn_if_global_in_subprocess(self: Any) -> None:
@@ -47,14 +34,4 @@ def warn_if_global_in_subprocess(self: Any) -> None:
     Args:
         self: The instance being constructed (used to derive class name).
     """
-    if not _is_global_in_spawned_child():
-        return
-    class_name = type(self).__name__
-    warnings.warn(
-        f"{class_name} was instantiated during module import in a spawned subprocess. "
-        "This usually means the monitor was created as a global variable, so the child "
-        "process re-imported your main module and executed global code again. Move monitor "
-        'construction under `if __name__ == "__main__":` or inside a function to avoid '
-        "repeated imports and memory issues.",
-        stacklevel=4,
-    )
+    raise NotImplementedError

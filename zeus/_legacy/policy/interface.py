@@ -52,7 +52,7 @@ class BatchSizeOptimizer(ABC):
 
     def _log(self, message: str) -> None:
         """Log message with object name."""
-        print(f"[{self.name}] {message}")
+        raise NotImplementedError
 
 
 class PowerLimitOptimizer(ABC):
@@ -90,4 +90,4 @@ class PowerLimitOptimizer(ABC):
 
     def _log(self, message: str) -> None:
         """Log message with object name."""
-        print(f"[{self.name}] {message}")
+        raise NotImplementedError

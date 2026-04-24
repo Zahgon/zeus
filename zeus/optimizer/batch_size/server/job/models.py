@@ -24,11 +24,7 @@ class JobGetter(GetterDict):
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get value from dict."""
-        if key == "batch_sizes":
-            # If the key is batch_sizes, parse the integer from object.
-            return [bs.batch_size for bs in self._obj.batch_sizes]
-
-        return super().get(key, default)
+        raise NotImplementedError
 
 
 class JobState(JobParams, GpuConfig):
@@ -64,17 +60,4 @@ class JobState(JobParams, GpuConfig):
     @root_validator(skip_on_failure=True)
     def _validate_mab(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Validate generator state."""
-        state: str | None = values["mab_random_generator_state"]
-        mab_seed: int | None = values["mab_seed"]
-
-        if mab_seed is not None:
-            if state is None:
-                raise ValueError("mab_seed is not none, but generator state is none")
-            else:
-                try:
-                    # Check sanity of the generator state.
-                    np.random.default_rng(1).__setstate__(json.loads(state))
-                except (TypeError, ValueError) as err:
-                    raise ValueError(f"Invalid generator state ({state})") from err
-
-        return values
+        pass

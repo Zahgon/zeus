@@ -32,28 +32,11 @@ class ZeusBsoSettings(BaseSettings):
 
     @validator("echo_sql")
     def _validate_echo_sql(cls, v) -> bool:
-        if v is not None and isinstance(v, bool):
-            return v
-        elif v is not None and isinstance(v, str):
-            if v.lower() == "false":
-                return False
-            elif v.lower() == "true":
-                return True
-        return False
+        pass
 
     @validator("log_level")
     def _validate_log_level(cls, v) -> str:
-        if v is None or v not in {
-            "NOTSET",
-            "DEBUG",
-            "INFO",
-            "WARN",
-            "ERROR",
-            "CRITICAL",
-        }:
-            # Default log level
-            return "INFO"
-        return v
+        pass
 
 
 settings = ZeusBsoSettings()  # type: ignore

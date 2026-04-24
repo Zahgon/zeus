@@ -39,12 +39,12 @@ PREFIX_LOCKS = defaultdict(asyncio.Lock)
 
 def get_job_locks() -> defaultdict[str, asyncio.Lock]:
     """Get global job locks."""
-    return JOB_LOCKS
+    pass
 
 
 def get_prefix_locks() -> defaultdict[str, asyncio.Lock]:
     """Get global job Id prefix locks."""
-    return PREFIX_LOCKS
+    pass
 
 
 @app.post(
@@ -62,32 +62,7 @@ async def register_job(
     prefix_locks: defaultdict[str, asyncio.Lock] = Depends(get_prefix_locks),
 ):
     """Endpoint for users to register a job or check if the job is registered and configuration is identical."""
-    async with prefix_locks[job.job_id_prefix]:
-        # One lock for registering a job. To prevent getting a same lock
-        optimizer = ZeusBatchSizeOptimizer(ZeusService(db_session))
-        try:
-            created = await optimizer.register_job(job)
-            await db_session.commit()
-            if created:
-                # new job is created
-                response.status_code = status.HTTP_201_CREATED
-            else:
-                # job already exists
-                response.status_code = status.HTTP_200_OK
-            return job
-        except ZeusBSOServerBaseError as err:
-            await db_session.rollback()
-            return JSONResponse(
-                status_code=err.status_code,
-                content={"message": err.message},
-            )
-        except Exception as err:
-            await db_session.rollback()
-            logger.error("Commit Failed: %s", str(err))
-            return JSONResponse(
-                status_code=500,
-                content={"message": str(err)},
-            )
+    pass
 
 
 @app.delete(DELETE_JOB_URL)
@@ -97,26 +72,7 @@ async def delete_job(
     job_locks: defaultdict[str, asyncio.Lock] = Depends(get_job_locks),
 ):
     """Endpoint for users to delete a job."""
-    async with job_locks[job_id]:
-        try:
-            optimizer = ZeusBatchSizeOptimizer(ZeusService(db_session))
-            await optimizer.delete_job(job_id)
-            await db_session.commit()
-        except ZeusBSOServerBaseError as err:
-            await db_session.rollback()
-            return JSONResponse(
-                status_code=err.status_code,
-                content={"message": err.message},
-            )
-        except Exception as err:
-            await db_session.rollback()
-            logger.error("Commit Failed: %s", str(err))
-            return JSONResponse(
-                status_code=500,
-                content={"message": str(err)},
-            )
-        finally:
-            job_locks.pop(job_id)
+    pass
 
 
 @app.patch(REPORT_END_URL)
@@ -126,24 +82,7 @@ async def end_trial(
     job_locks: defaultdict[str, asyncio.Lock] = Depends(get_job_locks),
 ):
     """Endpoint for users to end the trial."""
-    async with job_locks[trial.job_id]:
-        optimizer = ZeusBatchSizeOptimizer(ZeusService(db_session))
-        try:
-            await optimizer.end_trial(trial)
-            await db_session.commit()
-        except ZeusBSOServerBaseError as err:
-            await db_session.rollback()
-            return JSONResponse(
-                status_code=err.status_code,
-                content={"message": err.message},
-            )
-        except Exception as err:
-            await db_session.rollback()
-            logger.error("Commit Failed: %s", str(err))
-            return JSONResponse(
-                status_code=500,
-                content={"message": str(err)},
-            )
+    pass
 
 
 @app.get(GET_NEXT_BATCH_SIZE_URL, response_model=TrialId)
@@ -153,25 +92,7 @@ async def predict(
     job_locks: defaultdict[str, asyncio.Lock] = Depends(get_job_locks),
 ):
     """Endpoint for users to receive a batch size."""
-    async with job_locks[job_id]:
-        optimizer = ZeusBatchSizeOptimizer(ZeusService(db_session))
-        try:
-            res = await optimizer.predict(job_id)
-            await db_session.commit()
-            return res
-        except ZeusBSOServerBaseError as err:
-            await db_session.rollback()
-            return JSONResponse(
-                status_code=err.status_code,
-                content={"message": err.message},
-            )
-        except Exception as err:
-            await db_session.rollback()
-            logger.error("Commit Failed: %s", str(err))
-            return JSONResponse(
-                status_code=500,
-                content={"message": str(err)},
-            )
+    pass
 
 
 @app.post(REPORT_RESULT_URL, response_model=ReportResponse)
@@ -181,23 +102,4 @@ async def report(
     job_locks: defaultdict[str, asyncio.Lock] = Depends(get_job_locks),
 ):
     """Endpoint for users to report the training result."""
-    async with job_locks[result.job_id]:
-        optimizer = ZeusBatchSizeOptimizer(ZeusService(db_session))
-        try:
-            logger.info("Report with result %s", str(result))
-            res = await optimizer.report(result)
-            await db_session.commit()
-            return res
-        except ZeusBSOServerBaseError as err:
-            await db_session.rollback()
-            return JSONResponse(
-                status_code=err.status_code,
-                content={"message": err.message},
-            )
-        except Exception as err:
-            await db_session.rollback()
-            logger.error("Commit Failed: %s", str(err))
-            return JSONResponse(
-                status_code=500,
-                content={"message": str(err)},
-            )
+    pass

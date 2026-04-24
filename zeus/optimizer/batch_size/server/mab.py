@@ -41,8 +41,7 @@ class GaussianTS:
 
     def __init__(self, service: ZeusService):
         """Set up zeus service to interact with database."""
-        self.service = service
-        self.name = "GaussianTS"
+        raise NotImplementedError
 
     def _fit_arm(
         self,
@@ -64,36 +63,7 @@ class GaussianTS:
         Returns:
             Updated arm state
         """
-        if len(rewards) == 0:
-            raise ZeusBSOValueError("No rewards to fit the arm.")
-
-        variance = np.var(rewards)
-        reward_prec = np.inf if variance == 0.0 else np.reciprocal(variance)
-
-        # Reset to priors
-        mean = prior_mean
-        prec = prior_precision
-
-        # Compute the parameters of the posterior distribution.
-        # The reward distribution's precision is given as infinite only when we
-        # have exactly one observation for the arm, s.t. sampling yields that
-        # exact observation.
-        if reward_prec == np.inf:
-            new_prec = np.inf
-            new_mean = rewards.mean()
-        else:
-            new_prec = prec + len(rewards) * reward_prec
-            new_mean = (prec * mean + reward_prec * rewards.sum()) / new_prec
-
-        # Updated state.
-        return GaussianTsArmState(
-            job_id=bs_base.job_id,
-            batch_size=bs_base.batch_size,
-            param_mean=new_mean,
-            param_precision=new_prec,
-            reward_precision=reward_prec,
-            num_observations=len(rewards),
-        )
+        pass
 
     def predict(
         self,
@@ -113,54 +83,7 @@ class GaussianTS:
         Returns:
             batch size to use
         """
-        arm_dict = {arm.batch_size: arm for arm in arms}
-
-        # Exploration-only phase.
-        # Order is random considering concurrent bandit scenarios.
-        choices = self.service.get_random_choices(
-            GetRandomChoices(job_id=job_id, choices=[arm.batch_size for arm in arms])
-        )
-
-        for arm in choices:
-            if arm_dict[arm].num_observations < num_exploration:
-                logger.info("[%s] Explore arm %s.", self.name, str(arm))
-                return arm
-
-        # Thomopson Sampling phase.
-        # Sample the expected reward for each arm.
-        # Assumes that each arm has been explored at least once. Otherwise,
-        # a value will be sampled from the prior.
-
-        expectations = {}  # A mapping from every arm to their sampled expected reward.
-        for arm in arms:
-            if arm.param_precision == prior_precision:
-                logger.warning(
-                    "predict_expectations called when arm '%d' is cold.",
-                    arm.batch_size,
-                    stacklevel=1,
-                )
-            expectations[arm.batch_size] = self.service.get_normal(
-                GetNormal(
-                    job_id=job_id,
-                    loc=arm.param_mean,
-                    scale=np.sqrt(np.reciprocal(arm.param_precision)),
-                )
-            )
-
-        logger.info("[%s] Sampled mean rewards:", self.name)
-        for arm, sample in expectations.items():
-            logger.info(
-                "[%s] Arm %d: mu ~ N(%.2f, %.2f) -> %.2f",
-                self.name,
-                arm,
-                arm_dict[arm].param_mean,
-                1 / arm_dict[arm].param_precision,
-                sample,
-            )
-
-        bs = max(expectations, key=expectations.get)  # type: ignore
-        logger.info("%s in Thompson Sampling stage -> BS = %d", job_id, bs)
-        return bs
+        pass
 
     async def construct_mab(
         self, job: JobState, evidence: ExplorationsPerJob, good_bs: list[int]
@@ -179,46 +102,7 @@ class GaussianTS:
             `ValueError`: If exploration states is invalid (ex. number of pruning rounds doesn't corresponds)
             `ZeusBSOValueError`: No converged batch sizes from pruning stage.
         """
-        if job.job_id != evidence.job_id:
-            raise ZeusBSOServiceBadOperationError(
-                f"Job Id is not consistent: job({job.job_id}) != explorations({evidence.job_id})"
-            )
-
-        if len(good_bs) == 0:
-            raise ZeusBSOValueError("While creating arms, no batch size is selected")
-
-        logger.info(
-            "Construct MAB for %s with arms %s",
-            job.job_id,
-            str(good_bs),
-        )
-
-        new_arms: list[GaussianTsArmState] = []
-
-        # Fit the arm for each good batch size.
-        for _, bs in enumerate(good_bs):
-            rewards = []
-            # Collect rewards starting from the most recent ones and backwards.
-            for trial in evidence.explorations_per_bs[bs]:
-                if trial.energy is None or trial.time is None:
-                    raise ZeusBSOValueError(f"Trial {trial.trial_number} has no energy or time set.")
-                rewards.append(-zeus_cost(trial.energy, trial.time, job.eta_knob, job.max_power))
-
-            new_arms.append(
-                # create an arm
-                self._fit_arm(
-                    BatchSizeBase(job_id=job.job_id, batch_size=bs),
-                    job.mab_prior_mean,
-                    job.mab_prior_precision,
-                    np.array(rewards),
-                )
-            )
-
-        # submit new arms to db
-        self.service.create_arms(new_arms)
-        # update job stage from pruning to mab since we created arms
-        self.service.update_job_stage(UpdateJobStage(job_id=job.job_id, stage=Stage.MAB))
-        return new_arms
+        pass
 
     async def report(self, job: JobState, trial_result: UpdateTrial) -> None:
         """Based on the measurement, update the arm state.
@@ -230,60 +114,4 @@ class GaussianTS:
         Raises:
             `ZeusBSOValueError`: When the arm (job id, batch_size) doesn't exist
         """
-        if trial_result.energy is None or trial_result.time is None:
-            raise ZeusBSOValueError(f"Trial {trial_result.trial_number} has no energy or time set.")
-
-        # Since we're learning the reward precision, we need to
-        # 1. re-compute the precision of this arm based on the reward history,
-        # 2. update the arm's reward precision
-        # 3. and `fit` the new MAB instance on all the reward history.
-        # Note that `arm_rewards` always has more than one entry (and hence a
-        # non-zero variance) because we've been through pruning exploration.
-        batch_size_key = BatchSizeBase(job_id=job.job_id, batch_size=trial_result.batch_size)
-
-        # Get measurements of this bs in descending order. At most window_size length
-        history = await self.service.get_trial_results_of_bs(batch_size_key)
-
-        if len(history.results) >= job.window_size and job.window_size > 0:
-            # if the history is already above the window size, pop the last one to leave the spot for the current measurement.
-            history.results.pop()
-            history.results.reverse()  # Now ascending order.
-
-        costs = [-zeus_cost(m.energy, m.time, job.eta_knob, job.max_power) for m in history.results]
-        # Add current measurement to the costs
-        costs.append(-zeus_cost(trial_result.energy, trial_result.time, job.eta_knob, job.max_power))
-        arm_rewards = np.array(costs)
-
-        logger.info("Arm_rewards: %s", str(arm_rewards))
-
-        # Get current arm.
-        arm = await self.service.get_arm(batch_size_key)
-
-        if arm is None:
-            raise ZeusBSOValueError(f"MAB stage but Arm for batch size({trial_result.batch_size}) is not found.")
-
-        # Get a new arm state based on observation
-        new_arm = self._fit_arm(batch_size_key, job.mab_prior_mean, job.mab_prior_precision, arm_rewards)
-
-        # update the new arm state in db
-        self.service.update_arm_state(
-            UpdateArm(
-                trial=ReadTrial(
-                    job_id=trial_result.job_id,
-                    batch_size=trial_result.batch_size,
-                    trial_number=trial_result.trial_number,
-                ),
-                updated_arm=new_arm,
-            )
-        )
-        # update corresponding trial
-        self.service.update_trial(trial_result)
-
-        arm_rewards_repr = ", ".join([f"{r:.2f}" for r in arm_rewards])
-        logger.info(
-            "%s @ %d: arm_rewards = [%s], reward_prec = %.2f",
-            job.job_id,
-            trial_result.batch_size,
-            arm_rewards_repr,
-            new_arm.reward_precision,
-        )
+        pass

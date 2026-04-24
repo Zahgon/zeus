@@ -46,23 +46,16 @@ class PFOServerSettings(BaseSettings):
     @validator("scheduler", pre=True)
     def _fix_scheduler_import_path(cls, value):
         """Prepend `zeus.optimizer.pipeline_frequency.server.scheduler.` to the scheduler type name."""
-        return f"zeus.optimizer.pipeline_frequency.server.scheduler.{value}"
+        pass
 
     @validator("scheduler_args")
     def _validate_scheduler_args(cls, args, values):
         """Check whether args are as expected by the scheduler's constructor."""
-        scheduler = values["scheduler"]
-        full_args = args | dict(job_info=None, rank_infos=None, pfo_settings=None)
-        constructor_args = inspect.signature(scheduler)
-        try:
-            constructor_args.bind(**full_args)
-        except TypeError as e:
-            raise ValueError(f"Invalid scheduler args: {e}") from None
-        return args
+        pass
 
     @validator("log_level")
     def _make_upper_case(cls, value):
-        return value.upper()
+        pass
 
     class Config:
         """Configuration class read by pydantic."""
@@ -93,28 +86,16 @@ class JobInfo(BaseModel):
 
     @validator("job_id")
     def _check_empty_job_id(cls, job_id):
-        assert not job_id
-        return job_id
+        pass
 
     @validator("world_size")
     def _check_world_size(cls, world_size, values):
         """Product of PP, DP, and TP degree would be identical to the world size."""
-        assert values["pp_degree"] * values["dp_degree"] * values["tp_degree"] == world_size
-        return world_size
+        pass
 
     def set_job_id(self, scheduler_name: str):
         """Generate and set the job ID."""
-        self.job_id = "+".join(
-            [
-                datetime.now().strftime("%F-%H-%M-%S"),
-                f"dp{self.dp_degree}",
-                f"pp{self.pp_degree}",
-                f"tp{self.tp_degree}",
-                scheduler_name,
-            ]
-        )
-        if self.job_metadata:
-            self.job_id += f"+{self.job_metadata}"
+        pass
 
 
 class RankInfo(BaseModel):
@@ -207,22 +188,7 @@ class InstructionProfilingResult(BaseModel):
             - `instruction` is either "forward" or "backward".
             - `time` and `energy` are already averaged over profiling iterations.
         """
-        if not filepath.endswith(".csv"):
-            raise ValueError("Filepath does not end with '.csv'")
-
-        # fmt: off
-        headers = ["rank", "dp_rank", "pp_rank", "tp_rank", "stage", "instruction", "frequency", "time", "energy"]
-        records: list[tuple[int, int, int, int, int, str, int, float, float]] = []
-        for res in self.__root__:
-            prefix = (res.rank, res.dp_rank, res.pp_rank, res.tp_rank, res.pp_rank)
-            for freq in res.forward_time:
-                records.append((*prefix, "forward", freq, res.forward_time[freq], res.forward_energy[freq]))
-            for freq in res.backward_time:
-                records.append((*prefix, "backward", freq, res.backward_time[freq], res.backward_energy[freq]))
-        # fmt: on
-
-        df = pd.DataFrame.from_records(records, columns=headers)
-        df.to_csv(filepath, index=False)
+        pass
 
 
 async def save_prof(
@@ -231,16 +197,12 @@ async def save_prof(
     schedule_num: int,
 ) -> None:
     """Save a list of `ProfilingResult`s in the designated directory."""
-    os.makedirs(directory, exist_ok=True)
-    async with aiofiles.open(f"{directory}/{schedule_num}.prof.json", "w") as f:
-        obj = _ProfilingResultList(__root__=data).json()
-        await f.write(obj)
+    raise NotImplementedError
 
 
 def load_prof(directory: str, schedule_num: int) -> list[ProfilingResult]:
     """Load a list of `ProfilingResult`s saved in the designated directory."""
-    filepath = f"{directory}/{schedule_num}.prof.json"
-    return _ProfilingResultList.parse_file(filepath).__root__
+    pass
 
 
 async def save_sched(
@@ -249,30 +211,22 @@ async def save_sched(
     schedule_num: int,
 ) -> None:
     """Save a list of `FrequencySchedule`s in the designated directory."""
-    os.makedirs(directory, exist_ok=True)
-    async with aiofiles.open(f"{directory}/{schedule_num}.sched.json", "w") as f:
-        obj = _FrequencyScheduleList(__root__=data).json()
-        await f.write(obj)
+    raise NotImplementedError
 
 
 def load_sched(directory: str, schedule_num: int) -> list[FrequencySchedule]:
     """Load a list of `FrequencySchedule`s saved in the designated directory."""
-    filepath = f"{directory}/{schedule_num}.sched.json"
-    return _FrequencyScheduleList.parse_file(filepath).__root__
+    pass
 
 
 async def save_ranks(data: list[RankInfo], directory: str) -> None:
     """Save a list of `RankInfo`s in the designated directory."""
-    os.makedirs(directory, exist_ok=True)
-    async with aiofiles.open(f"{directory}/ranks.json", "w") as f:
-        obj = _RankInfoList(__root__=data).json()
-        await f.write(obj)
+    raise NotImplementedError
 
 
 def load_ranks(directory: str) -> list[RankInfo]:
     """Load a list of `RankInfo`s saved in the designated directory."""
-    filepath = f"{directory}/ranks.json"
-    return _RankInfoList.parse_file(filepath).__root__
+    pass
 
 
 # Proxy classes for a list of Pydantic objects.

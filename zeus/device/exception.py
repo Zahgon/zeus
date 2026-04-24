@@ -8,7 +8,7 @@ class ZeusBaseGPUError(ZeusBaseError):
 
     def __init__(self, message: str) -> None:
         """Initialize Base Zeus Exception."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusBaseCPUError(ZeusBaseError):
@@ -16,7 +16,7 @@ class ZeusBaseCPUError(ZeusBaseError):
 
     def __init__(self, message: str) -> None:
         """Initialize Base Zeus Exception."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusBaseSoCError(ZeusBaseError):
@@ -24,7 +24,7 @@ class ZeusBaseSoCError(ZeusBaseError):
 
     def __init__(self, message: str) -> None:
         """Initialize Base Zeus Exception."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusdError(ZeusBaseGPUError):
@@ -32,4 +32,4 @@ class ZeusdError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Initialize Zeusd error."""
-        super().__init__(message)
+        raise NotImplementedError

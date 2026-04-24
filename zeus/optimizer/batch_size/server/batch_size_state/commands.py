@@ -66,11 +66,7 @@ class CreateTrial(CreateTrialBase):
         Returns:
             `TrialTable`: ORM object representing the trial.
         """
-        d = self.dict()
-        t = TrialTable()
-        for k, v in d.items():
-            setattr(t, k, v)
-        return t
+        pass
 
 
 class CreateExplorationTrial(CreateTrialBase):
@@ -136,10 +132,7 @@ class UpdateTrial(BatchSizeBase):
     @validator("status")
     def _check_status(cls, s: TrialStatus) -> TrialStatus:
         """Check if status is equal to Dispatched."""
-        if s != TrialStatus.Dispatched:
-            return s
-        else:
-            raise ValueError(f"{s} shouldn't be Dispatched since this is reporting the result.")
+        pass
 
     @root_validator(skip_on_failure=True)
     def _validate_sanity(cls, values: dict[str, Any]) -> dict[str, Any]:
@@ -149,13 +142,4 @@ class UpdateTrial(BatchSizeBase):
             - if status == Failed, time/energy/converged == None.
                 else, time/energy/converged != None.
         """
-        status: TrialStatus = values["status"]
-
-        time: float | None = values["time"]
-        energy: float | None = values["energy"]
-        converged: bool | None = values["converged"]
-
-        if status != TrialStatus.Failed and (time is None or energy is None or converged is None):
-            raise ValueError(f"Result is incomplete: time({time}), energy({energy}), converged({converged})")
-
-        return values
+        pass

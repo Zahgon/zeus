@@ -26,7 +26,7 @@ def zeus_cost(energy: float, time: float, eta_knob: float, max_power: int | floa
     Returns:
         The cost of the DL training job.
     """
-    return eta_knob * energy + (1 - eta_knob) * max_power * time
+    raise NotImplementedError
 
 
 # ruff: noqa: PLR2004
@@ -49,19 +49,7 @@ def energy(
         start: Start time of the window to consider.
         end: End time of the window to consider.
     """
-    df = pd.read_csv(logfile, engine="python", skipfooter=1)
-    df["Time"] = pd.to_datetime(df["Time"])
-    start_timestamp = df.iloc[0]["Time"]
-    end_timestamp = df.iloc[-1]["Time"]
-    if start is not None:
-        origin = start_timestamp if start >= 0.0 else end_timestamp
-        df = df.loc[df["Time"] >= origin + timedelta(seconds=start)]
-    if end is not None:
-        origin = start_timestamp if end >= 0.0 else end_timestamp
-        df = df.loc[df["Time"] <= origin + timedelta(seconds=end)]
-    seconds = _get_seconds(df)
-    watts = _get_watts(df)
-    return auc(seconds, watts)
+    pass
 
 
 def avg_power(
@@ -87,21 +75,12 @@ def avg_power(
         ValueError: From `sklearn.metrics.auc`, when the duration of the
             profiling window is too small.
     """
-    df = pd.read_csv(logfile, engine="python", skipfooter=1)
-    df["Time"] = pd.to_datetime(df["Time"])
-    if start is not None:
-        df = df.loc[df["Time"] >= df.iloc[0]["Time"] + timedelta(seconds=start)]
-    if end is not None:
-        df = df.loc[df["Time"] <= df.iloc[0]["Time"] + timedelta(seconds=end)]
-    seconds = _get_seconds(df)
-    watts = _get_watts(df)
-    area = auc(seconds, watts)
-    return area / (max(seconds) - min(seconds))
+    pass
 
 
 def _get_seconds(df: pd.DataFrame) -> pd.Series:
-    return df["Time"].map(lambda t: t.timestamp())
+    pass
 
 
 def _get_watts(df: pd.DataFrame) -> pd.Series:
-    return df["Power"].div(1000.0)
+    pass

@@ -27,7 +27,7 @@ class PruningExploreManager:
 
     def __init__(self, service: ZeusService):
         """Set up zeus service."""
-        self.service = service
+        raise NotImplementedError
 
     async def next_batch_size(
         self,
@@ -52,74 +52,4 @@ class PruningExploreManager:
         Raises:
             `ZeusBSOValueError`: If the value is invalid. EX) default batch size is not in the converged batch size list.
         """
-        batch_sizes = job.batch_sizes
-        exp_default_bs = job.default_batch_size
-
-        for round in range(job.num_pruning_rounds):
-            converged_bs_list = []
-
-            min_cost_of_round = float("inf")
-            min_batch_size_of_round = 0
-
-            batch_sizes.sort()
-            idx = batch_sizes.index(exp_default_bs)
-            down = sorted(batch_sizes[: idx + 1], reverse=True)
-            up = sorted(batch_sizes[idx + 1 :])
-
-            for bs_list in [down, up]:
-                for bs in bs_list:
-                    if (
-                        bs in exploration_history.explorations_per_bs
-                        and len(exploration_history.explorations_per_bs[bs]) > round
-                    ):
-                        # Already explored at this round
-                        if exploration_history.explorations_per_bs[bs][round].status == TrialStatus.Dispatched:
-                            # We are waiting for the result of this exploration -> Concurrent job!
-                            return await self.service.create_trial(
-                                CreateConcurrentTrial(
-                                    job_id=job.job_id,
-                                    batch_size=job.min_cost_batch_size,
-                                )
-                            )
-
-                        if not exploration_history.explorations_per_bs[bs][round].converged:
-                            # Failed to converge -> Go to next list or round
-                            break
-                        else:
-                            # Training converged.
-                            converged_bs_list.append(bs)
-
-                            m = exploration_history.explorations_per_bs[bs][round]
-                            if m.energy is None or m.time is None:
-                                raise ZeusBSOValueError("Energy or time is not available for the exploration.")
-                            cost = zeus_cost(m.energy, m.time, job.eta_knob, job.max_power)
-                            if cost < min_cost_of_round:
-                                min_cost_of_round = cost
-                                min_batch_size_of_round = bs
-
-                    else:
-                        # Did not explore this round. Should explore!
-                        return await self.service.create_trial(
-                            CreateExplorationTrial(
-                                job_id=job.job_id,
-                                batch_size=bs,
-                            )
-                        )
-
-            # We should go to next round. Update exp_default_bs and batch sizes!
-            exp_default_bs = min_batch_size_of_round
-            batch_sizes = converged_bs_list
-
-            logger.info(
-                "[PruningExploreManager] go to next round(%d) new default bs = %d converged bs list = %s",
-                round,
-                exp_default_bs,
-                batch_sizes,
-            )
-
-            if len(batch_sizes) == 0:
-                raise ZeusBSOServerRuntimeError(
-                    "No converged batch sizes has observed. Reconfigure batch_sizes and re-launch the job."
-                )
-        # After going through pruning rounds, we couldn't find the bs. Should go to MAB stage, so return good batch_sizes.
-        return sorted(batch_sizes)
+        pass

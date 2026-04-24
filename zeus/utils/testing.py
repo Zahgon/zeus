@@ -53,24 +53,7 @@ class ReplayZeusMonitor(ZeusMonitor):
             ignore_sync_execution: Whether to ignore `sync_execution` calls. (Default: `False`)
             match_window_name: Whether to make sure window names match. (Default: `True`)
         """
-        if log_file is None:
-            raise ValueError("`log_file` cannot be `None` for `ReplayZeusMonitor`.")
-
-        self.approx_instant_energy = approx_instant_energy
-        self.log_file = open(log_file)
-        self.ignore_sync_execution = ignore_sync_execution
-        self.match_window_name = match_window_name
-
-        # Infer GPU indices from the log file if not provided.
-        header = self.log_file.readline()
-        if gpu_indices is None:
-            gpu_indices = [int(gpu.split("_")[0][3:]) for gpu in header.split(",")[3:] if gpu]
-        self.nvml_gpu_indices = self.gpu_indices = gpu_indices
-
-        logger.info("Replaying from '%s' with GPU indices %s", log_file, gpu_indices)
-
-        # Keep track of ongoing measurement windows.
-        self.ongoing_windows = []
+        raise NotImplementedError
 
     def begin_window(self, key: str, sync_execution: bool = True, restart: bool = False) -> None:
         """Begin a new window.
@@ -85,16 +68,7 @@ class ReplayZeusMonitor(ZeusMonitor):
             restart: If True and the window already exists, cancel the existing window
                 and start a new one.
         """
-        if key in self.ongoing_windows:
-            if not restart:
-                raise RuntimeError(f"Window {key} is already ongoing.")
-            self.ongoing_windows.remove(key)
-        self.ongoing_windows.append(key)
-
-        if not self.ignore_sync_execution and sync_execution:
-            sync_execution_fn(self.gpu_indices)
-
-        logger.info("Measurement window '%s' started.", key)
+        raise NotImplementedError
 
     def end_window(self, key: str, sync_execution: bool = True, cancel: bool = False) -> Measurement:
         """End an ongoing window.
@@ -111,35 +85,4 @@ class ReplayZeusMonitor(ZeusMonitor):
             cancel: Whether to cancel the measurement window. This will not consume a
                 line from the log file. (Default: `False`)
         """
-        try:
-            self.ongoing_windows.remove(key)
-        except ValueError:
-            raise RuntimeError(f"Window {key} is not ongoing.") from None
-
-        if not self.ignore_sync_execution and sync_execution:
-            sync_execution_fn(self.gpu_indices)
-
-        if cancel:
-            logger.info("Measurement window '%s' cancelled.", key)
-            return Measurement(
-                time=0.0,
-                gpu_energy={gpu_index: 0.0 for gpu_index in self.gpu_indices},
-            )
-
-        # Read the next line from the log file.
-        assert self.log_file is not None
-        line = self.log_file.readline()
-        if not line:
-            raise RuntimeError("No more lines in the log file.")
-        _, window_name, *nums = line.split(",")
-        if self.match_window_name and window_name != key:
-            raise RuntimeError(f"Was expecting {window_name}, not {key}.")
-        if len(nums) != len(self.gpu_indices) + 1:
-            raise RuntimeError(f"Line has unexpected number of energy measurements: {line}")
-        time_consumption, *energy_consumptions = map(float, nums)
-        energy = dict(zip(self.gpu_indices, energy_consumptions))
-        measurement = Measurement(time=time_consumption, gpu_energy=energy)
-
-        logger.info("Measurement window '%s' ended (%s).", key, measurement)
-
-        return measurement
+        raise NotImplementedError

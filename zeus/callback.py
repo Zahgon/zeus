@@ -39,49 +39,40 @@ class CallbackSet(Callback):
 
     def __init__(self, callbacks: list[Callback]) -> None:
         """Initialize the callback set."""
-        self.callbacks = callbacks
+        raise NotImplementedError
 
     def on_train_begin(self) -> None:
         """Called at the beginning of training."""
-        for callback in self.callbacks:
-            callback.on_train_begin()
+        pass
 
     def on_train_end(self) -> None:
         """Called at the end of training."""
-        for callback in self.callbacks:
-            callback.on_train_end()
+        pass
 
     def on_epoch_begin(self) -> None:
         """Called at the beginning of each epoch."""
-        for callback in self.callbacks:
-            callback.on_epoch_begin()
+        pass
 
     def on_epoch_end(self) -> None:
         """Called at the end of each epoch."""
-        for callback in self.callbacks:
-            callback.on_epoch_end()
+        pass
 
     def on_step_begin(self) -> None:
         """Called at the beginning of each step."""
-        for callback in self.callbacks:
-            callback.on_step_begin()
+        pass
 
     def on_step_end(self) -> None:
         """Called at the end of each step."""
-        for callback in self.callbacks:
-            callback.on_step_end()
+        pass
 
     def on_evaluate(self, metric: float) -> None:
         """Called after evaluating the model."""
-        for callback in self.callbacks:
-            callback.on_evaluate(metric)
+        pass
 
     def on_instruction_begin(self, name: str) -> None:
         """Called at the beginning of pipeline instructions like forward or backward."""
-        for callback in self.callbacks:
-            callback.on_instruction_begin(name)
+        pass
 
     def on_instruction_end(self, name: str) -> None:
         """Called at the end of pipeline instructions like forward or backward."""
-        for callback in self.callbacks:
-            callback.on_instruction_end(name)
+        pass

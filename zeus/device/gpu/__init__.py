@@ -74,19 +74,14 @@ The following exceptions are defined in this module:
 - [`ZeusGPUMemoryError`][zeus.device.gpu.ZeusGPUMemoryError]: Error for memory issues.
 - [`ZeusGPUUnknownError`][zeus.device.gpu.ZeusGPUUnknownError]: Error for unknown issues.
 """
-
 from __future__ import annotations
-
 from zeus.device.gpu.common import *
 from zeus.device.gpu.common import GPUs, ZeusGPUInitError
 from zeus.device.gpu.nvidia import nvml_is_available, NVIDIAGPUs
 from zeus.device.gpu.amd import amdsmi_is_available, AMDGPUs
-
-
 _gpus: GPUs | None = None
 
-
-def get_gpus(ensure_homogeneous: bool = False) -> GPUs:
+def get_gpus(ensure_homogeneous: bool=False) -> GPUs:
     """Initialize and return a singleton object for GPU management.
 
     This function returns a GPU management object that aims to abstract
@@ -103,15 +98,4 @@ def get_gpus(ensure_homogeneous: bool = False) -> GPUs:
     Args:
         ensure_homogeneous (bool): If True, ensures that all tracked GPUs have the same name.
     """
-    global _gpus
-    if _gpus is not None:
-        return _gpus
-
-    if nvml_is_available():
-        _gpus = NVIDIAGPUs(ensure_homogeneous)
-        return _gpus
-    elif amdsmi_is_available():
-        _gpus = AMDGPUs(ensure_homogeneous)
-        return _gpus
-    else:
-        raise ZeusGPUInitError("NVML and AMDSMI unavailable. Failed to initialize GPU management library.")
+    raise NotImplementedError()

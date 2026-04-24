@@ -22,22 +22,11 @@ class GPU(abc.ABC, metaclass=DeprecatedAliasABCMeta):
 
     def __init__(self, gpu_index: int) -> None:
         """Initializ the GPU with a specified index."""
-        self.gpu_index = gpu_index
+        raise NotImplementedError
 
     def _warn_sys_admin(self) -> None:
         """Warn the user if the current process doesn't have `SYS_ADMIN` privileges."""
-        # Deriving classes can disable this warning by setting this attribute.
-        if not getattr(self, "_disable_sys_admin_warning", False) and not has_sys_admin():
-            warnings.warn(
-                "You are about to call a GPU management API that requires "
-                "`SYS_ADMIN` privileges. Some energy optimizers that change the "
-                "GPU's power settings need this.\nSee "
-                "https://ml.energy/zeus/getting_started/#system-privileges "
-                "for more information and how to obtain `SYS_ADMIN`.",
-                stacklevel=2,
-            )
-            # Only warn once.
-            self._disable_sys_admin_warning = True
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod
@@ -187,63 +176,49 @@ class GPUs(abc.ABC, metaclass=DeprecatedAliasABCMeta):
 
     def __len__(self) -> int:
         """Return the number of GPUs being tracked."""
-        return len(self.gpus)
+        raise NotImplementedError
 
     def _ensure_homogeneous(self) -> None:
         """Ensures that all tracked GPUs are homogeneous in terms of name."""
-        gpu_names = [gpu.get_name() for gpu in self.gpus]
-        # Both zero (no GPUs found) and one are fine.
-        if len(set(gpu_names)) > 1:
-            raise ZeusGPUHeterogeneousError(f"Heterogeneous GPUs found: {gpu_names}")
+        raise NotImplementedError
 
     def _warn_sys_admin(self) -> None:
         """Warn the user if the current process doesn't have `SYS_ADMIN` privileges."""
-        # Deriving classes can disable this warning by setting this attribute.
-        if not getattr(self, "_disable_sys_admin_warning", False) and not has_sys_admin():
-            warnings.warn(
-                "You are about to call a GPU management API that requires "
-                "`SYS_ADMIN` privileges. Some energy optimizers that change the "
-                "GPU's power settings need this.\nSee "
-                "https://ml.energy/zeus/getting_started/#system-privileges "
-                "for more information and how to obtain `SYS_ADMIN`.",
-                stacklevel=2,
-            )
-            # Only warn once.
-            self._disable_sys_admin_warning = True
+        raise NotImplementedError
 
     @deprecated_alias("getName")
     def get_name(self, gpu_index: int) -> str:
         """Return the name of the specified GPU."""
-        return self.gpus[gpu_index].get_name()
+        raise NotImplementedError
 
     @deprecated_alias("getPowerManagementLimitConstraints")
     def get_power_management_limit_constraints(self, gpu_index: int) -> tuple[int, int]:
         """Return the minimum and maximum power management limits. Units: mW."""
-        return self.gpus[gpu_index].get_power_management_limit_constraints()
+        raise NotImplementedError
 
     def get_power_management_limit(self, gpu_index: int) -> int:
         """Return the current power management limit. Units: mW."""
-        return self.gpus[gpu_index].get_power_management_limit()
+        raise NotImplementedError
 
     @deprecated_alias("setPowerManagementLimit")
     def set_power_management_limit(self, gpu_index: int, power_limit_mw: int, block: bool = True) -> None:
         """Set the GPU's power management limit. Unit: mW."""
-        self.gpus[gpu_index].set_power_management_limit(power_limit_mw, block)
+        raise NotImplementedError
 
     @deprecated_alias("resetPowerManagementLimit")
     def reset_power_management_limit(self, gpu_index: int, block: bool = True) -> None:
         """Reset the GPU's power management limit to the default value."""
-        self.gpus[gpu_index].reset_power_management_limit(block)
+        pass
 
     @deprecated_alias("setPersistenceMode")
     def set_persistence_mode(self, gpu_index: int, enabled: bool, block: bool = True) -> None:
         """Set persistence mode for the specified GPU."""
-        self.gpus[gpu_index].set_persistence_mode(enabled, block)
+        raise NotImplementedError
 
     @deprecated_alias("getSupportedMemoryClocks")
     def get_supported_memory_clocks(self, gpu_index: int) -> list[int]:
         """Return a list of supported memory clock frequencies. Units: MHz."""
-        return self.gpus[gpu_index].get_supported_memory_clocks()
+        raise NotImplementedError
 
     @deprecated_alias("setMemoryLockedClocks")
     def set_memory_locked_clocks(
@@ -254,12 +229,12 @@ class GPUs(abc.ABC, metaclass=DeprecatedAliasABCMeta):
         block: bool = True,
     ) -> None:
         """Lock the memory clock to a specified range. Units: MHz."""
-        self.gpus[gpu_index].set_memory_locked_clocks(min_clock_mhz, max_clock_mhz, block)
+        pass
 
     @deprecated_alias("resetMemoryLockedClocks")
     def reset_memory_locked_clocks(self, gpu_index: int, block: bool = True) -> None:
         """Reset the locked memory clocks to the default."""
-        self.gpus[gpu_index].reset_memory_locked_clocks(block)
+        pass
 
     @deprecated_alias("getSupportedGraphicsClocks")
     def get_supported_graphics_clocks(self, gpu_index: int, memory_clock_mhz: int | None = None) -> list[int]:
@@ -270,7 +245,7 @@ class GPUs(abc.ABC, metaclass=DeprecatedAliasABCMeta):
             memory_clock_mhz: Memory clock frequency to use. Some GPUs have
                 different supported graphics clocks depending on the memory clock.
         """
-        return self.gpus[gpu_index].get_supported_graphics_clocks(memory_clock_mhz)
+        raise NotImplementedError
 
     @deprecated_alias("setGpuLockedClocks")
     def set_gpu_locked_clocks(
@@ -281,42 +256,42 @@ class GPUs(abc.ABC, metaclass=DeprecatedAliasABCMeta):
         block: bool = True,
     ) -> None:
         """Lock the GPU clock to a specified range. Units: MHz."""
-        self.gpus[gpu_index].set_gpu_locked_clocks(min_clock_mhz, max_clock_mhz, block)
+        pass
 
     @deprecated_alias("resetGpuLockedClocks")
     def reset_gpu_locked_clocks(self, gpu_index: int, block: bool = True) -> None:
         """Reset the locked GPU clocks to the default."""
-        self.gpus[gpu_index].reset_gpu_locked_clocks(block)
+        pass
 
     @deprecated_alias("getAveragePowerUsage")
     def get_average_power_usage(self, gpu_index: int) -> int:
         """Return the average power usage of the GPU. Units: mW."""
-        return self.gpus[gpu_index].get_average_power_usage()
+        raise NotImplementedError
 
     @deprecated_alias("getInstantPowerUsage")
     def get_instant_power_usage(self, gpu_index: int) -> int:
         """Return the current power draw of the GPU. Units: mW."""
-        return self.gpus[gpu_index].get_instant_power_usage()
+        raise NotImplementedError
 
     @deprecated_alias("getAverageMemoryPowerUsage")
     def get_average_memory_power_usage(self, gpu_index: int) -> int:
         """Return the average power usage of the GPU's memory. Units: mW."""
-        return self.gpus[gpu_index].get_average_memory_power_usage()
+        pass
 
     @deprecated_alias("supportsGetTotalEnergyConsumption")
     def supports_get_total_energy_consumption(self, gpu_index: int) -> bool:
         """Check if the GPU supports retrieving total energy consumption."""
-        return self.gpus[gpu_index].supports_get_total_energy_consumption()
+        raise NotImplementedError
 
     @deprecated_alias("getTotalEnergyConsumption")
     def get_total_energy_consumption(self, gpu_index: int) -> int:
         """Return the total energy consumption of the GPU since driver load. Units: mJ."""
-        return self.gpus[gpu_index].get_total_energy_consumption()
+        raise NotImplementedError
 
     @deprecated_alias("getGpuTemperature")
     def get_gpu_temperature(self, gpu_index: int) -> int:
         """Return the current GPU temperature. Units: Celsius."""
-        return self.gpus[gpu_index].get_gpu_temperature()
+        pass
 
 
 class EmptyGPUs(GPUs):
@@ -343,7 +318,7 @@ class EmptyGPUs(GPUs):
     @property
     def gpus(self) -> Sequence["GPU"]:
         """Return an empty list as no GPUs are being tracked."""
-        return []
+        pass
 
     def __len__(self) -> int:
         """Return 0, indicating no GPUs are being tracked."""
@@ -351,45 +326,45 @@ class EmptyGPUs(GPUs):
 
     def _ensure_homogeneous(self) -> None:
         """Raise a ValueError as no GPUs are being tracked."""
-        raise ValueError("No GPUs available to ensure homogeneity.")
+        raise NotImplementedError
 
     def _warn_sys_admin(self) -> None:
         """Raise a ValueError as no GPUs are being tracked."""
-        raise ValueError("No GPUs available to warn about SYS_ADMIN privileges.")
+        raise NotImplementedError
 
     @deprecated_alias("getName")
     def get_name(self, gpu_index: int) -> str:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("getPowerManagementLimitConstraints")
     def get_power_management_limit_constraints(self, gpu_index: int) -> tuple[int, int]:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     def get_power_management_limit(self, gpu_index: int) -> int:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("setPowerManagementLimit")
     def set_power_management_limit(self, gpu_index: int, power_limit_mw: int, block: bool = True) -> None:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("resetPowerManagementLimit")
     def reset_power_management_limit(self, gpu_index: int, block: bool = True) -> None:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("setPersistenceMode")
     def set_persistence_mode(self, gpu_index: int, enabled: bool, block: bool = True) -> None:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("getSupportedMemoryClocks")
     def get_supported_memory_clocks(self, gpu_index: int) -> list[int]:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("setMemoryLockedClocks")
     def set_memory_locked_clocks(
@@ -400,17 +375,17 @@ class EmptyGPUs(GPUs):
         block: bool = True,
     ) -> None:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("resetMemoryLockedClocks")
     def reset_memory_locked_clocks(self, gpu_index: int, block: bool = True) -> None:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("getSupportedGraphicsClocks")
     def get_supported_graphics_clocks(self, gpu_index: int, memory_clock_mhz: int | None = None) -> list[int]:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("setGpuLockedClocks")
     def set_gpu_locked_clocks(
@@ -421,32 +396,32 @@ class EmptyGPUs(GPUs):
         block: bool = True,
     ) -> None:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("resetGpuLockedClocks")
     def reset_gpu_locked_clocks(self, gpu_index: int, block: bool = True) -> None:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("getInstantPowerUsage")
     def get_instant_power_usage(self, gpu_index: int) -> int:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("supportsGetTotalEnergyConsumption")
     def supports_get_total_energy_consumption(self, gpu_index: int) -> bool:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("getTotalEnergyConsumption")
     def get_total_energy_consumption(self, gpu_index: int) -> int:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
     @deprecated_alias("getGpuTemperature")
     def get_gpu_temperature(self, gpu_index: int) -> int:
         """Raise a ValueError as no GPUs are available."""
-        raise ValueError("No GPUs available.")
+        raise NotImplementedError
 
 
 class ZeusGPUInitError(ZeusBaseGPUError):
@@ -454,7 +429,7 @@ class ZeusGPUInitError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUInvalidArgError(ZeusBaseGPUError):
@@ -462,7 +437,7 @@ class ZeusGPUInvalidArgError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUNotSupportedError(ZeusBaseGPUError):
@@ -470,7 +445,7 @@ class ZeusGPUNotSupportedError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUNoPermissionError(ZeusBaseGPUError):
@@ -478,7 +453,7 @@ class ZeusGPUNoPermissionError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUAlreadyInitializedError(ZeusBaseGPUError):
@@ -486,7 +461,7 @@ class ZeusGPUAlreadyInitializedError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUNotFoundError(ZeusBaseGPUError):
@@ -494,7 +469,7 @@ class ZeusGPUNotFoundError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUInsufficientSizeError(ZeusBaseGPUError):
@@ -502,7 +477,7 @@ class ZeusGPUInsufficientSizeError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUInsufficientPowerError(ZeusBaseGPUError):
@@ -510,7 +485,7 @@ class ZeusGPUInsufficientPowerError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUDriverNotLoadedError(ZeusBaseGPUError):
@@ -518,7 +493,7 @@ class ZeusGPUDriverNotLoadedError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUTimeoutError(ZeusBaseGPUError):
@@ -526,7 +501,7 @@ class ZeusGPUTimeoutError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUIRQError(ZeusBaseGPUError):
@@ -534,7 +509,7 @@ class ZeusGPUIRQError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPULibraryNotFoundError(ZeusBaseGPUError):
@@ -542,7 +517,7 @@ class ZeusGPULibraryNotFoundError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUFunctionNotFoundError(ZeusBaseGPUError):
@@ -550,7 +525,7 @@ class ZeusGPUFunctionNotFoundError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUCorruptedInfoROMError(ZeusBaseGPUError):
@@ -558,7 +533,7 @@ class ZeusGPUCorruptedInfoROMError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPULostError(ZeusBaseGPUError):
@@ -566,7 +541,7 @@ class ZeusGPULostError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUResetRequiredError(ZeusBaseGPUError):
@@ -574,7 +549,7 @@ class ZeusGPUResetRequiredError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUOperatingSystemError(ZeusBaseGPUError):
@@ -582,7 +557,7 @@ class ZeusGPUOperatingSystemError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPULibRMVersionMismatchError(ZeusBaseGPUError):
@@ -590,7 +565,7 @@ class ZeusGPULibRMVersionMismatchError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUMemoryError(ZeusBaseGPUError):
@@ -598,7 +573,7 @@ class ZeusGPUMemoryError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUUnknownError(ZeusBaseGPUError):
@@ -606,7 +581,7 @@ class ZeusGPUUnknownError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError
 
 
 class ZeusGPUHeterogeneousError(ZeusBaseGPUError):
@@ -614,4 +589,4 @@ class ZeusGPUHeterogeneousError(ZeusBaseGPUError):
 
     def __init__(self, message: str) -> None:
         """Intialize the exception object."""
-        super().__init__(message)
+        raise NotImplementedError

@@ -53,7 +53,7 @@ class Energy(OptimumSelector):
 
     def select(self, measurements: list[PowerLimitMeasurement]) -> int:
         """Select the optimal power limit (W) from measurements."""
-        return min(measurements, key=lambda x: x.energy).power_limit
+        raise NotImplementedError
 
 
 class Time(OptimumSelector):
@@ -67,7 +67,7 @@ class Time(OptimumSelector):
 
     def select(self, measurements: list[PowerLimitMeasurement]) -> int:
         """Select the optimal power limit (W) from measurements."""
-        return min(measurements, key=lambda x: x.time).power_limit
+        raise NotImplementedError
 
 
 class ZeusCost(OptimumSelector):
@@ -83,27 +83,11 @@ class ZeusCost(OptimumSelector):
             eta_knob: The $0 \le \eta \le 1$ knob for the Zeus time-energy cost function.
             world_size: The number of GPUs in the training job. Defaults to 1.
         """
-        if eta_knob < 0 or eta_knob > 1:
-            raise ValueError("eta_knob must be between 0 and 1, inclusive both sides.")
-        if world_size < 1:
-            raise ValueError("world_size must be greater than or equal to 1.")
-
-        self.eta_knob = eta_knob
-        self.world_size = world_size
+        raise NotImplementedError
 
     def select(self, measurements: list[PowerLimitMeasurement]) -> int:
         """Select the optimal power limit (W) from measurements."""
-        max_power = max(measurement.power_limit for measurement in measurements) * self.world_size
-        zeus_cost_map = {
-            measurement.power_limit: zeus_cost(
-                energy=measurement.energy,
-                time=measurement.time,
-                eta_knob=self.eta_knob,
-                max_power=max_power,
-            )
-            for measurement in measurements
-        }
-        return min(zeus_cost_map, key=lambda x: zeus_cost_map[x])
+        raise NotImplementedError
 
 
 class MaxSlowdownConstraint(OptimumSelector):
@@ -115,22 +99,11 @@ class MaxSlowdownConstraint(OptimumSelector):
         Args:
             factor: The maximum allowed slowdown factor. Greater than or equal to 1.0.
         """
-        if factor < 1.0:
-            raise ValueError(
-                f"max_slowdown_factor must be greater than or equal to 1.0. Got {factor}.",
-            )
-
-        self.factor = factor
+        raise NotImplementedError
 
     def select(self, measurements: list[PowerLimitMeasurement]) -> int:
         """Select the optimal power limit (W) from measurements."""
-        feasible_power_limits = []
-        max_power = max(measurement.power_limit for measurement in measurements)
-        shortest_time = next(measurement.time for measurement in measurements if measurement.power_limit == max_power)
-        for measurement in measurements:
-            if measurement.time <= self.factor * shortest_time:
-                feasible_power_limits.append(measurement.power_limit)
-        return min(feasible_power_limits)
+        raise NotImplementedError
 
 
 class Ready(BaseModel):
@@ -243,192 +216,15 @@ class GlobalPowerLimitOptimizer(Callback):
                 and do not run any profiling. If the path points to a non-existing file, profile
                 and save the profile to the file. If `None`, do not save or load any profile.
         """
-        # Sanity checks.
-        if wait_steps < 0:
-            raise ValueError("wait_steps must be non-negative.")
-        if warmup_steps < 0:
-            raise ValueError("warmup_steps must be non-negative.")
-        if profile_steps <= 0:
-            raise ValueError("profile_steps must be positive.")
-        if pl_step <= 0:
-            raise ValueError("pl_step must be positive.")
-
-        self.monitor = monitor
-        self.optimum_selector = optimum_selector or ZeusCost(
-            eta_knob=0.5,
-            world_size=len(monitor.gpu_indices),
-        )
-        self.warmup_steps = warmup_steps
-        self.profile_steps = profile_steps
-        self.pl_step = pl_step * 1000  # Internally, we use milliWatts.
-        self.profile_path = Path(profile_path) if isinstance(profile_path, str) else profile_path
-
-        gpus = get_gpus(ensure_homogeneous=True)
-
-        # Warn if distributed training is enabled with multiple GPUs monitored.
-        if is_distributed() and len(monitor.gpu_indices) > 1:
-            logger.warning(
-                "Distributed training is enabled with %d GPUs monitored. "
-                "For distributed training, it is recommended to monitor only one GPU per `ZeusMonitor` instance "
-                "since `GlobalPowerLimitOptimizer` performs an all-reduce operation internally over all devices.",
-                len(monitor.gpu_indices),
-            )
-
-        # Set the range of power limits to explore.
-        # Assert that supported power limits ranges are uniform across GPUs.
-        pls = []
-        for index in monitor.gpu_indices:
-            pls.append(gpus.get_power_management_limit_constraints(index))
-        if not all(pls[0] == pl for pl in pls):
-            raise ValueError("Power limits ranges are not uniform across GPUs.")
-        self.power_limits = list(range(pls[0][1], pls[0][0] - 1, -self.pl_step))
-
-        # Turn on persistence mode and set to the highest power limit.
-        try:
-            for index in monitor.gpu_indices:
-                gpus.set_persistence_mode(index, enabled=True, block=True)
-        except ZeusGPUNoPermissionError as ze:
-            raise RuntimeError(
-                "SYS_ADMIN capability is required to modify GPU power limits. See "
-                "https://ml.energy/zeus/getting_started/#system-privileges "
-                "for more information."
-            ) from ze
-        self.current_power_limit = 0
-
-        # Store `Measurement` objects in a list, one for each power limit.
-        self.measurements: list[PowerLimitMeasurement] = []
-
-        # State for the profiler state machine.
-        self.state: Ready | Warmup | Profiling | Done
-
-        # Initialize JIT profiling states.
-        if self.profile_path is None:
-            logger.info("JIT profiling enabled.")
-            logger.info("Will wait %d step(s) before profiling.", wait_steps)
-            self.state = Ready(next_power_limit=self.power_limits[0], steps=wait_steps + 1)
-            logger.info("Set power limit to the maximum before starting.")
-            self._set_power_limit(max(self.power_limits))
-        elif not self.profile_path.exists():
-            logger.info(
-                "JIT Profiling enabled. Profile will be saved to '%s'.",
-                str(self.profile_path),
-            )
-            logger.info("Will wait %d step(s) before profiling.", wait_steps)
-            self.state = Ready(next_power_limit=self.power_limits[0], steps=wait_steps + 1)
-            logger.info("Set power limit to the maximum before starting.")
-            self._set_power_limit(max(self.power_limits))
-        else:
-            self.measurements = _PowerLimitMeasurementList.parse_file(
-                self.profile_path,
-            ).measurements
-            # self.measurements = _PowerLimitMeasurementList.model_validate_json(
-            #     open(self.profile_path).read(),
-            #     strict=True,
-            # ).measurements
-            logger.info("Loaded previous profiling results from '%s'.", str(self.profile_path))
-            optimal_power_limit = self._compute_optimal_power_limit()
-            logger.info("Optimal power limit is %d W.", optimal_power_limit // 1000)
-            self.state = Done(optimal_power_limit=optimal_power_limit)
-            self._set_power_limit(self.state.optimal_power_limit)
-
-        # Restore all GPUs back to their maximum power limit on exit.
-        atexit.register(lambda: self._set_power_limit(max(self.power_limits)))
+        raise NotImplementedError
 
     def on_epoch_end(self) -> None:
         """Mark the end of a training epoch."""
-        if isinstance(self.state, Ready):
-            pass
-
-        elif isinstance(self.state, (Warmup, Profiling)):
-            # Warmup/Profiling stage interrupted by the end of an epoch.
-            logger.info(
-                "%s phase for %d W interrupted by the end of a training epoch.",
-                type(self.state).__name__,
-                self.state.current_power_limit // 1000,
-            )
-            if isinstance(self.state, Profiling):
-                self.monitor.end_window(
-                    f"__GlobalPowerLimitOptimizer_{self.state.current_power_limit // 1000}",
-                    cancel=True,
-                )
-            self.state = Ready(next_power_limit=self.state.current_power_limit, steps=1)
-            self._set_power_limit(max(self.power_limits))
-
-        elif isinstance(self.state, Done):
-            pass
+        pass
 
     def on_step_begin(self) -> None:
         """Mark the beginning of a training step."""
-        if isinstance(self.state, Ready):
-            self.state.steps -= 1
-            if self.state.steps == 0:
-                logger.info(
-                    "Starting warmup for power limit %d W.",
-                    self.state.next_power_limit // 1000,
-                )
-                self._set_power_limit(self.state.next_power_limit)
-                self.state = Warmup(
-                    current_power_limit=self.state.next_power_limit,
-                    steps=self.warmup_steps,
-                )
-
-        elif isinstance(self.state, Warmup):
-            self.state.steps -= 1
-            if self.state.steps == 0:
-                logger.info(
-                    "Starting actual profiling for power limit %d W.",
-                    self.state.current_power_limit // 1000,
-                )
-                self.state = Profiling(
-                    current_power_limit=self.state.current_power_limit,
-                    steps=self.profile_steps,
-                )
-                self.monitor.begin_window(
-                    f"__GlobalPowerLimitOptimizer_{self.state.current_power_limit // 1000}",
-                )
-
-        elif isinstance(self.state, Profiling):
-            self.state.steps -= 1
-            if self.state.steps == 0:
-                measurement = self.monitor.end_window(
-                    f"__GlobalPowerLimitOptimizer_{self.state.current_power_limit // 1000}",
-                )
-                logger.info(
-                    "Finished profiling for power limit %d W.",
-                    self.state.current_power_limit // 1000,
-                )
-
-                self.measurements.append(
-                    PowerLimitMeasurement(
-                        power_limit=self.state.current_power_limit // 1000,
-                        energy=sum(all_reduce(list(measurement.gpu_energy.values()), operation="sum")),
-                        time=max(all_reduce([measurement.time], operation="max")),
-                    )
-                )
-                # If we're done profiling all power limits, compute the optimal
-                # power limit and transition to the Done state. Otherwise, move
-                # on to the Warmup phase for the next power limit.
-                current_power_limit_index = self.power_limits.index(self.state.current_power_limit)
-                if current_power_limit_index == len(self.power_limits) - 1:
-                    self.state = Done(
-                        optimal_power_limit=self._compute_optimal_power_limit(),
-                    )
-                    self._set_power_limit(self.state.optimal_power_limit)
-                    self._save_profile()
-                else:
-                    next_power_limit = self.power_limits[current_power_limit_index + 1]
-                    logger.info(
-                        "Starting warmup for power limit %d W.",
-                        next_power_limit // 1000,
-                    )
-                    self._set_power_limit(next_power_limit)
-                    self.state = Warmup(
-                        current_power_limit=next_power_limit,
-                        steps=self.warmup_steps,
-                    )
-
-        elif isinstance(self.state, Done):
-            pass
+        pass
 
     def _set_power_limit(self, power_limit: int) -> None:
         """Set the power limit for all GPUs.
@@ -436,31 +232,15 @@ class GlobalPowerLimitOptimizer(Callback):
         Args:
             power_limit: The power limit to set, in milliWatts.
         """
-        gpus = get_gpus()
-        logger.info("Setting power limit to %d W.", power_limit // 1000)
-        if self.current_power_limit == power_limit:
-            return
-        for index in self.monitor.gpu_indices:
-            gpus.set_power_management_limit(index, power_limit)
-        self.current_power_limit = power_limit
+        raise NotImplementedError
 
     def _compute_optimal_power_limit(self) -> int:
         """Compute the optimal power limit in milliWatts."""
-        optimal_power_limit = self.optimum_selector.select(self.measurements) * 1000
-        logger.info("Optimal power limit is %d W.", optimal_power_limit // 1000)
-        return optimal_power_limit
+        raise NotImplementedError
 
     def _save_profile(self) -> None:
         """Save JIT profiling results and the optimal power limit to a JSON file."""
-        if self.profile_path is None:
-            return
-
-        assert isinstance(self.state, Done)
-        with self.profile_path.open("w", encoding="utf-8") as f:
-            f.write(
-                _PowerLimitMeasurementList(measurements=self.measurements).json(indent=4),
-            )
-        logger.info("JIT profiling results saved to '%s'.", str(self.profile_path))
+        pass
 
 
 # Only import HuggingFace Classes when type checking, to avoid hard dependency on HuggingFace Transformers
@@ -512,20 +292,7 @@ class HFGlobalPowerLimitOptimizer(TrainerCallback):
                 and do not run any profiling. If the path points to a non-existing file, profile
                 and save the profile to the file. If `None`, do not save or load any profile.
         """
-        if not transformers_available:
-            raise ImportError(
-                "The transformers package is not installed. Please install it to use the HFGlobalPowerLimitOptimizer."
-            )
-
-        self.optimizer = GlobalPowerLimitOptimizer(
-            monitor=monitor,
-            optimum_selector=optimum_selector,
-            wait_steps=wait_steps,
-            warmup_steps=warmup_steps,
-            profile_steps=profile_steps,
-            pl_step=pl_step,
-            profile_path=profile_path,
-        )
+        raise NotImplementedError
 
     def on_epoch_end(
         self,
@@ -535,7 +302,7 @@ class HFGlobalPowerLimitOptimizer(TrainerCallback):
         **kwargs,
     ) -> None:
         """Mark the end of a training epoch."""
-        self.optimizer.on_epoch_end()
+        pass
 
     def on_step_begin(
         self,
@@ -545,4 +312,4 @@ class HFGlobalPowerLimitOptimizer(TrainerCallback):
         **kwargs,
     ) -> None:
         """Mark the beginning of a training step."""
-        self.optimizer.on_step_begin()
+        pass

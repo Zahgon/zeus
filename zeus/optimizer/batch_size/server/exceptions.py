@@ -8,8 +8,7 @@ class ZeusBSOServerBaseError(ZeusBaseError):
 
     def __init__(self, msg: str):
         """Set status code."""
-        super().__init__(msg)
-        self.status_code = 500
+        raise NotImplementedError
 
 
 class ZeusBSOJobConfigMismatchError(ZeusBSOServerBaseError):
@@ -17,8 +16,7 @@ class ZeusBSOJobConfigMismatchError(ZeusBSOServerBaseError):
 
     def __init__(self, msg: str):
         """Set status code."""
-        super().__init__(msg)
-        self.status_code = 409
+        raise NotImplementedError
 
 
 class ZeusBSOValueError(ZeusBSOServerBaseError):
@@ -26,8 +24,7 @@ class ZeusBSOValueError(ZeusBSOServerBaseError):
 
     def __init__(self, msg: str):
         """Set status code."""
-        super().__init__(msg)
-        self.status_code = 400
+        raise NotImplementedError
 
 
 class ZeusBSOServerNotFoundError(ZeusBSOServerBaseError):
@@ -35,8 +32,7 @@ class ZeusBSOServerNotFoundError(ZeusBSOServerBaseError):
 
     def __init__(self, msg: str):
         """Set status code."""
-        super().__init__(msg)
-        self.status_code = 404
+        raise NotImplementedError
 
 
 class ZeusBSOServiceBadOperationError(ZeusBSOServerBaseError):
@@ -44,8 +40,7 @@ class ZeusBSOServiceBadOperationError(ZeusBSOServerBaseError):
 
     def __init__(self, msg: str):
         """Set status code."""
-        super().__init__(msg)
-        self.status_code = 400
+        raise NotImplementedError
 
 
 class ZeusBSOServerRuntimeError(ZeusBSOServerBaseError):
@@ -53,5 +48,4 @@ class ZeusBSOServerRuntimeError(ZeusBSOServerBaseError):
 
     def __init__(self, msg: str):
         """Set status code."""
-        super().__init__(msg)
-        self.status_code = 500
+        raise NotImplementedError

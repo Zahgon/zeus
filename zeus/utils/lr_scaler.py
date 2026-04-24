@@ -18,7 +18,7 @@ class SquareRootScaler:
 
     def compute_lr(self, new_bs: int) -> float:
         """Compute the scaled learning rate given the new batch size."""
-        return self.lr * math.sqrt(new_bs / self.bs)
+        pass
 
 
 @dataclass
@@ -35,4 +35,4 @@ class LinearScaler:
 
     def compute_lr(self, new_bs: int) -> float:
         """Compute the scaled learning rate given the new batch size."""
-        return self.lr * new_bs / self.bs
+        pass

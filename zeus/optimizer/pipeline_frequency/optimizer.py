@@ -68,86 +68,11 @@ class PipelineFrequencyOptimizer(Callback):
             job_metadata: An optional arbitrary string that describes the job. This will
                 be appended to the job ID if given. Typically for logging purposes.
         """
-        if not dist.is_initialized():  # ty: ignore[possibly-missing-attribute]
-            raise RuntimeError("Instantiate `PipelineFrequencyOptimizer` after `init_process_group`.")
-
-        self.server_url = server_url
-        self.rank = rank
-        self.dp_rank = dp_rank
-        self.pp_rank = pp_rank
-        self.tp_rank = tp_rank
-        self.device_id = device_id
-
-        gpus = get_gpus()
-        torch.cuda.set_device(device_id)
-
-        # Rank 0 registers the job with the PFO server and retrieves the job ID.
-        job_id = None
-        if rank == 0:
-            job_info = JobInfo(
-                pp_degree=pp_degree,
-                dp_degree=dp_degree,
-                tp_degree=tp_degree,
-                world_size=world_size,
-                job_metadata=job_metadata,
-            )
-            response = httpx.post(self.server_url + REGISTER_JOB_URL, json=job_info.dict())
-            if (code := response.status_code) != 200:
-                raise RuntimeError(f"PFO server returned status code {code}: {response.text}")
-            job_id = response.json()
-            if not isinstance(job_id, str):
-                raise RuntimeError(f"PFO server returned a strange job ID: {job_id=}")
-
-        # Rank 0 broadcasts the job ID across all ranks.
-        objects = [job_id]
-        dist.broadcast_object_list(objects, src=0)  # ty: ignore[possibly-missing-attribute]
-        self.job_id = objects[0]
-        if self.job_id is None:
-            raise RuntimeError("Failed to broadcast job ID to all ranks")
-
-        # Query the list of available frequencies of the GPU.
-        max_mem_freq = max(gpus.get_supported_memory_clocks(device_id))
-        freqs = sorted(
-            gpus.get_supported_graphics_clocks(device_id, max_mem_freq),
-            reverse=True,
-        )
-
-        # Each rank reports itself to the PFO server with the job ID.
-        rank_info = RankInfo(
-            rank=self.rank,
-            dp_rank=self.dp_rank,
-            pp_rank=self.pp_rank,
-            tp_rank=self.tp_rank,
-            available_frequencies=freqs,
-        )
-        response = httpx.post(
-            self.server_url + REGISTER_RANK_URL.format(job_id=self.job_id),
-            json=rank_info.dict(),
-        )
-        if (code := response.status_code) != 200:
-            raise RuntimeError(f"PFO server returned status code {code}: {response.text}")
-
-        # The frequency controller is responsible for controlling the frequency
-        # of the GPU (device_id) asynchronously.
-        self.frequency_controller = FrequencyController(device_id=device_id)
-
-        # Fetch the frequency schedule from the PFO server.
-        self.freq_schedule = self._get_frequency_schedule()
-        self.freq_schedule_iter = iter(self.freq_schedule)
+        raise NotImplementedError
 
     def _get_frequency_schedule(self) -> list[tuple[str, int]]:
         """Get the frequency schedule from the PFO server."""
-        response = httpx.get(
-            self.server_url + GET_FREQUENCY_SCHEDULE_URL.format(job_id=self.job_id),
-            params={"rank": self.rank},
-            timeout=None,
-        )
-        if (code := response.status_code) != 200:
-            raise RuntimeError(f"PFO server returned status code {code}: {response.text}")
-        schedule = FrequencySchedule.parse_raw(response.text)
-        if schedule.rank != self.rank:
-            raise RuntimeError(f"PFO server returned a schedule for rank {schedule.rank} to rank {self.rank}")
-        return schedule.frequencies
+        raise NotImplementedError
 
     def on_step_begin(self) -> None:
         """Mark the beginning of a step.
@@ -162,14 +87,7 @@ class PipelineFrequencyOptimizer(Callback):
         TODO(jaywonchung): InstructionProfiler iteration end mark.
         Also report the profiling result to the PFO server after N iterations.
         """
-        # Frequency schedule holds one iteration-worth of frequencies, so at
-        # the end of each iteration, the iterator should be exhausted.
-        item = next(self.freq_schedule_iter, None)
-        if item is not None:
-            raise RuntimeError(
-                f"PFO server returned more frequencies than expected. Next expected instruction and frequency is {item}"
-            )
-        self.freq_schedule_iter = iter(self.freq_schedule)
+        pass
 
     def on_instruction_begin(self, name: str) -> None:
         """Mark the beginning of an instruction, like forward and backward.
@@ -178,19 +96,7 @@ class PipelineFrequencyOptimizer(Callback):
         expected instruction matches the name of the instruction, and set the
         frequency accordingly.
         """
-        sync_execution([self.device_id], sync_with="torch")
-
-        # Retrieve the next frequency from the schedule.
-        item = next(self.freq_schedule_iter, None)
-        if item is None:
-            raise RuntimeError("PFO server returned fewer frequencies than expected")
-
-        # Check whether the next expected instruction matches the name of the instruction.
-        instruction, frequency = item
-        if instruction != name:
-            raise RuntimeError(f"The next expected instruction is not forward: {instruction}")
-
-        self.frequency_controller.set_frequency(frequency)
+        pass
 
     def on_instruction_end(self, name: str) -> None:
         """Mark the end of an instruction, like forward and backward."""

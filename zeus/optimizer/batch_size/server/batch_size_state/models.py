@@ -76,26 +76,7 @@ class Trial(BatchSizeBase):
             - if status == dispatched | Failed, time/energy/converged = None
                 else time/energy/converged != None
         """
-        start_timestamp: datetime = values["start_timestamp"]
-        end_timestamp: datetime | None = values["end_timestamp"]
-        status: TrialStatus = values["status"]
-        time: float | None = values["time"]
-        energy: float | None = values["energy"]
-        converged: bool | None = values["converged"]
-
-        if end_timestamp is not None and start_timestamp > end_timestamp:
-            raise ValueError(f"start is earlier than end: {start_timestamp} > {end_timestamp}")
-        if status in (TrialStatus.Dispatched, TrialStatus.Failed):
-            if not (time is None and energy is None and converged is None):
-                raise ValueError("Trial status and result is not matching.")
-            if status == TrialStatus.Failed and end_timestamp is None:
-                raise ValueError("Trial ended but end_timestamp is None.")
-        elif time is None or energy is None or converged is None or end_timestamp is None:
-            raise ValueError(
-                f"Trial ended but the result is incomplete: time({time}), energy({energy}), converged({converged}), end_timestamp({end_timestamp})"
-            )
-
-        return values
+        pass
 
 
 class GaussianTsArmState(BatchSizeBase):
@@ -128,11 +109,7 @@ class GaussianTsArmState(BatchSizeBase):
         Returns:
             GaussianTsArmState: The ORM object of Gaussian Arm State.
         """
-        d = self.dict()
-        g = GaussianTsArmStateTable()
-        for k, v in d.items():
-            setattr(g, k, v)
-        return g
+        pass
 
 
 # Helper models
@@ -162,10 +139,7 @@ class TrialResult(BatchSizeBase):
     @validator("status")
     def _check_state(cls, s: TrialStatus) -> TrialStatus:
         """Check if status is equal to succeeded."""
-        if s == TrialStatus.Succeeded:
-            return s
-        else:
-            raise ValueError(f"{s} should be succeeded to have a valid result.")
+        pass
 
 
 class TrialResultsPerBs(BatchSizeBase):
@@ -180,22 +154,7 @@ class TrialResultsPerBs(BatchSizeBase):
     @root_validator(skip_on_failure=True)
     def _check_explorations(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Validate if job_id and bs are consistent across all items in results."""
-        bs: int = values["batch_size"]
-        job_id: str = values["job_id"]
-        ms: list[TrialResult] = values["results"]
-        ms.sort(key=lambda x: x.trial_number, reverse=True)
-
-        for m in ms:
-            if job_id != m.job_id:
-                raise ValueError(f"job_id doesn't correspond with results: {job_id} != {m.job_id}")
-            if bs != m.batch_size:
-                raise ValueError(f"Batch size doesn't correspond with results: {bs} != {m.batch_size}")
-            if m.status != TrialStatus.Succeeded:
-                raise ValueError(
-                    f"This list should only contain succeeded trials. Encounted trial({m.trial_number}) of status = {m.status}"
-                )
-
-        return values
+        pass
 
 
 class ExplorationsPerJob(BaseModel):
@@ -220,20 +179,4 @@ class ExplorationsPerJob(BaseModel):
     @root_validator(skip_on_failure=True)
     def _check_explorations(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Check bs and job_id corresponds to explorations_per_bs and batch size is consistent."""
-        job_id: str = values["job_id"]
-        exps_per_bs: dict[int, list[Trial]] = values["explorations_per_bs"]
-
-        for bs, exps in exps_per_bs.items():
-            # Sort ascending just in case. Sql will return asc order anyways.
-            exps.sort(key=lambda x: x.trial_number)
-            for exp in exps:
-                if job_id != exp.job_id:
-                    raise ValueError(f"job_id doesn't correspond with explorations: {job_id} != {exp.job_id}")
-                if bs != exp.batch_size:
-                    raise ValueError(f"Batch size doesn't correspond with explorations: {bs} != {exp.batch_size}")
-                if exp.type != TrialType.Exploration:
-                    raise ValueError("Trial type is not equal to Exploration.")
-                if exp.status == TrialStatus.Failed:
-                    raise ValueError("Should not include failed trial.")
-
-        return values
+        pass

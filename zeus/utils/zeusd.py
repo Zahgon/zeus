@@ -136,12 +136,7 @@ class ZeusdConfig:
             gpu_indices: GPU indices to stream (for `PowerStreamingClient`).
             cpu_indices: CPU indices to stream (for `PowerStreamingClient`).
         """
-        return cls(
-            host_port=f"{host}:{port}",
-            token=token,
-            gpu_indices=gpu_indices,
-            cpu_indices=cpu_indices,
-        )
+        pass
 
     @classmethod
     def uds(
@@ -160,12 +155,7 @@ class ZeusdConfig:
             gpu_indices: GPU indices to stream (for `PowerStreamingClient`).
             cpu_indices: CPU indices to stream (for `PowerStreamingClient`).
         """
-        return cls(
-            socket_path=socket_path,
-            token=token,
-            gpu_indices=gpu_indices,
-            cpu_indices=cpu_indices,
-        )
+        raise NotImplementedError
 
     @classmethod
     def from_env(cls) -> ZeusdConfig | None:
@@ -177,44 +167,27 @@ class ZeusdConfig:
 
         Returns None if neither env var is set.
         """
-        token = os.environ.get("ZEUSD_TOKEN")
-        sock = os.environ.get("ZEUSD_SOCK_PATH")
-        if sock is not None:
-            return cls.uds(socket_path=sock, token=token)
-        host_port = os.environ.get("ZEUSD_HOST_PORT")
-        if host_port is not None:
-            return cls(host_port=host_port, token=token)
-        return None
+        raise NotImplementedError
 
     @property
     def _is_uds(self) -> bool:
-        return self.socket_path is not None
+        pass
 
     def make_client(self) -> httpx.Client:
         """Create an httpx.Client with the appropriate transport and auth."""
-        headers = self._auth_headers()
-        if self._is_uds:
-            transport = httpx.HTTPTransport(uds=self.socket_path)
-            return httpx.Client(transport=transport, headers=headers)
-        return httpx.Client(headers=headers)
+        raise NotImplementedError
 
     def url(self, path: str) -> str:
         """Build the full URL for the given path."""
-        if self._is_uds:
-            return f"http://localhost{path}"
-        return f"http://{self.host_port}{path}"
+        raise NotImplementedError
 
     @property
     def endpoint(self) -> str:
         """Human-readable identifier for this connection."""
-        if self._is_uds:
-            return self.socket_path  # type: ignore[return-value]
-        return self.host_port  # type: ignore[return-value]
+        pass
 
     def _auth_headers(self) -> dict[str, str]:
-        if self.token:
-            return {"Authorization": f"Bearer {self.token}"}
-        return {}
+        raise NotImplementedError
 
 
 class ZeusdClient:
@@ -234,119 +207,60 @@ class ZeusdClient:
 
     def __init__(self, config: ZeusdConfig | None = None) -> None:
         """Initialize the client, run discovery, and attempt authentication."""
-        if config is None:
-            config = ZeusdConfig.from_env()
-            if config is None:
-                raise ZeusdConnectionError(
-                    "No Zeusd connection configured. Set ZEUSD_SOCK_PATH or ZEUSD_HOST_PORT, or pass a ZeusdConfig."
-                )
-        self._config = config
-        self._client = config.make_client()
-
-        try:
-            resp = self._client.get(config.url("/discover"))
-        except httpx.RequestError as exc:
-            raise ZeusdConnectionError(f"Cannot reach Zeusd at {config.endpoint}: {exc}") from exc
-        if resp.status_code != 200:
-            raise ZeusdConnectionError(
-                f"Zeusd at {config.endpoint} returned HTTP {resp.status_code} on /discover: {resp.text}"
-            )
-        data = resp.json()
-        self._gpu_ids: list[int] = data.get("gpu_ids", [])
-        self._cpu_ids: list[int] = data.get("cpu_ids", [])
-        self._dram_available: list[bool] = data.get("dram_available", [])
-        self._enabled_api_groups: set[str] = set(data.get("enabled_api_groups", []))
-        self._auth_required: bool = data.get("auth_required", False)
-
-        self._auth_error: str | None = None
-        self._granted_scopes: frozenset[str] = frozenset()
-        self._whoami_sub: str | None = None
-        self._whoami_exp: int | None = None
-        if self._auth_required:
-            if not config.token:
-                self._auth_error = (
-                    f"Zeusd at {config.endpoint} requires authentication but "
-                    "no token was provided. Set the ZEUSD_TOKEN environment "
-                    "variable or pass token= in the config."
-                )
-            else:
-                whoami_resp = self._client.get(config.url("/auth/whoami"))
-                if whoami_resp.status_code == 401:
-                    self._auth_error = f"Token rejected by Zeusd at {config.endpoint}: {whoami_resp.text}"
-                elif whoami_resp.status_code != 200:
-                    self._auth_error = (
-                        f"Unexpected response from /auth/whoami at "
-                        f"{config.endpoint} (HTTP {whoami_resp.status_code}): "
-                        f"{whoami_resp.text}"
-                    )
-                else:
-                    whoami = whoami_resp.json()
-                    self._granted_scopes = frozenset(whoami.get("scopes", []))
-                    self._whoami_sub = whoami.get("sub")
-                    self._whoami_exp = whoami.get("exp")
-                    logger.info(
-                        "Authenticated with Zeusd at %s as user '%s' (scopes: %s)",
-                        config.endpoint,
-                        self._whoami_sub,
-                        sorted(self._granted_scopes),
-                    )
-            if self._auth_error:
-                logger.warning("Auth issue with Zeusd at %s: %s", config.endpoint, self._auth_error)
+        raise NotImplementedError
 
     @property
     def endpoint(self) -> str:
         """Human-readable identifier for this connection."""
-        return self._config.endpoint
+        pass
 
     @property
     def gpu_ids(self) -> list[int]:
         """GPU device indices available on this daemon."""
-        return list(self._gpu_ids)
+        pass
 
     @property
     def cpu_ids(self) -> list[int]:
         """CPU device indices available on this daemon."""
-        return list(self._cpu_ids)
+        pass
 
     @property
     def dram_available(self) -> list[bool]:
         """Per-CPU DRAM energy availability, aligned with `cpu_ids`."""
-        return list(self._dram_available)
+        pass
 
     @property
     def auth_required(self) -> bool:
         """Whether this daemon requires JWT authentication."""
-        return self._auth_required
+        pass
 
     @property
     def auth_error(self) -> str | None:
         """Auth error message, or None if auth succeeded or is not required."""
-        return self._auth_error
+        pass
 
     @property
     def granted_scopes(self) -> frozenset[str]:
         """Scopes granted by the current token (empty if auth is off or failed)."""
-        return self._granted_scopes
+        pass
 
     def _can(self, api_group: str, scope: str) -> bool:
-        if api_group not in self._enabled_api_groups:
-            return False
-        return not (self._auth_required and scope not in self._granted_scopes)
+        pass
 
     @property
     def can_read_gpu(self) -> bool:
         """Whether GPU read endpoints are accessible."""
-        return self._can("gpu-read", "gpu-read")
+        pass
 
     @property
     def can_control_gpu(self) -> bool:
         """Whether GPU control endpoints are accessible."""
-        return self._can("gpu-control", "gpu-control")
+        pass
 
     @property
     def can_read_cpu(self) -> bool:
         """Whether CPU read endpoints are accessible."""
-        return self._can("cpu-read", "cpu-read")
+        pass
 
     def get_gpu_energy(self, gpu_ids: list[int]) -> dict[int, int]:
         """Get cumulative energy consumption per GPU.
@@ -357,13 +271,7 @@ class ZeusdClient:
         Returns:
             Mapping of GPU index to cumulative energy in millijoules.
         """
-        resp = self._client.get(
-            self._config.url("/gpu/get_cumulative_energy"),
-            params={"gpu_ids": ",".join(str(i) for i in gpu_ids)},
-        )
-        self._check(resp, "get_gpu_energy")
-        data = resp.json()
-        return {int(k): v["energy_mj"] for k, v in data.items()}
+        pass
 
     def get_gpu_power(self, gpu_ids: list[int] | None = None) -> GpuPowerSnapshot:
         """Get instantaneous GPU power readings.
@@ -374,40 +282,15 @@ class ZeusdClient:
         Returns:
             Snapshot with timestamp and per-GPU power in milliwatts.
         """
-        params: dict[str, str] = {}
-        if gpu_ids is not None:
-            params["gpu_ids"] = ",".join(str(i) for i in gpu_ids)
-        resp = self._client.get(self._config.url("/gpu/get_power"), params=params)
-        self._check(resp, "get_gpu_power")
-        data = resp.json()
-        return GpuPowerSnapshot(
-            timestamp_ms=data["timestamp_ms"],
-            power_mw={int(k): v for k, v in data["power_mw"].items()},
-        )
+        pass
 
     def set_power_limit(self, gpu_ids: list[int], power_limit_mw: int, block: bool = True) -> None:
         """Set the power management limit for the given GPUs."""
-        resp = self._client.post(
-            self._config.url("/gpu/set_power_limit"),
-            params={
-                "gpu_ids": ",".join(str(i) for i in gpu_ids),
-                "power_limit_mw": str(power_limit_mw),
-                "block": "true" if block else "false",
-            },
-        )
-        self._check(resp, "set_power_limit")
+        raise NotImplementedError
 
     def set_persistence_mode(self, gpu_ids: list[int], enabled: bool, block: bool = True) -> None:
         """Set persistence mode for the given GPUs."""
-        resp = self._client.post(
-            self._config.url("/gpu/set_persistence_mode"),
-            params={
-                "gpu_ids": ",".join(str(i) for i in gpu_ids),
-                "enabled": "true" if enabled else "false",
-                "block": "true" if block else "false",
-            },
-        )
-        self._check(resp, "set_persistence_mode")
+        raise NotImplementedError
 
     def set_gpu_locked_clocks(
         self,
@@ -417,27 +300,11 @@ class ZeusdClient:
         block: bool = True,
     ) -> None:
         """Lock the GPU clock to a specified range (MHz)."""
-        resp = self._client.post(
-            self._config.url("/gpu/set_gpu_locked_clocks"),
-            params={
-                "gpu_ids": ",".join(str(i) for i in gpu_ids),
-                "min_clock_mhz": str(min_clock_mhz),
-                "max_clock_mhz": str(max_clock_mhz),
-                "block": "true" if block else "false",
-            },
-        )
-        self._check(resp, "set_gpu_locked_clocks")
+        pass
 
     def reset_gpu_locked_clocks(self, gpu_ids: list[int], block: bool = True) -> None:
         """Reset locked GPU clocks to the default."""
-        resp = self._client.post(
-            self._config.url("/gpu/reset_gpu_locked_clocks"),
-            params={
-                "gpu_ids": ",".join(str(i) for i in gpu_ids),
-                "block": "true" if block else "false",
-            },
-        )
-        self._check(resp, "reset_gpu_locked_clocks")
+        pass
 
     def set_mem_locked_clocks(
         self,
@@ -447,27 +314,11 @@ class ZeusdClient:
         block: bool = True,
     ) -> None:
         """Lock the memory clock to a specified range (MHz)."""
-        resp = self._client.post(
-            self._config.url("/gpu/set_mem_locked_clocks"),
-            params={
-                "gpu_ids": ",".join(str(i) for i in gpu_ids),
-                "min_clock_mhz": str(min_clock_mhz),
-                "max_clock_mhz": str(max_clock_mhz),
-                "block": "true" if block else "false",
-            },
-        )
-        self._check(resp, "set_mem_locked_clocks")
+        pass
 
     def reset_mem_locked_clocks(self, gpu_ids: list[int], block: bool = True) -> None:
         """Reset locked memory clocks to the default."""
-        resp = self._client.post(
-            self._config.url("/gpu/reset_mem_locked_clocks"),
-            params={
-                "gpu_ids": ",".join(str(i) for i in gpu_ids),
-                "block": "true" if block else "false",
-            },
-        )
-        self._check(resp, "reset_mem_locked_clocks")
+        pass
 
     def get_cpu_energy(
         self,
@@ -485,23 +336,7 @@ class ZeusdClient:
         Returns:
             Mapping of CPU index to energy results.
         """
-        resp = self._client.get(
-            self._config.url("/cpu/get_cumulative_energy"),
-            params={
-                "cpu_ids": ",".join(str(i) for i in cpu_ids),
-                "cpu": "true" if cpu else "false",
-                "dram": "true" if dram else "false",
-            },
-        )
-        self._check(resp, "get_cpu_energy")
-        data = resp.json()
-        return {
-            int(k): CpuEnergyResult(
-                cpu_energy_uj=v.get("cpu_energy_uj"),
-                dram_energy_uj=v.get("dram_energy_uj"),
-            )
-            for k, v in data.items()
-        }
+        raise NotImplementedError
 
     def get_cpu_power(self, cpu_ids: list[int] | None = None) -> CpuPowerSnapshot:
         """Get instantaneous CPU power readings.
@@ -512,24 +347,11 @@ class ZeusdClient:
         Returns:
             Snapshot with timestamp and per-CPU power in milliwatts.
         """
-        params: dict[str, str] = {}
-        if cpu_ids is not None:
-            params["cpu_ids"] = ",".join(str(i) for i in cpu_ids)
-        resp = self._client.get(self._config.url("/cpu/get_power"), params=params)
-        self._check(resp, "get_cpu_power")
-        data = resp.json()
-        return CpuPowerSnapshot(
-            timestamp_ms=data["timestamp_ms"],
-            power_mw={
-                int(k): CpuDramPower(cpu_mw=v["cpu_mw"], dram_mw=v.get("dram_mw")) for k, v in data["power_mw"].items()
-            },
-        )
+        pass
 
     def get_time(self) -> float:
         """Get daemon timestamp in seconds."""
-        resp = self._client.get(self._config.url("/time"))
-        self._check(resp, "get_time")
-        return resp.json()["timestamp_ms"] / 1000.0
+        raise NotImplementedError
 
     def make_client(self) -> httpx.Client:
         """Create a new httpx.Client with this client's transport and auth.
@@ -537,23 +359,19 @@ class ZeusdClient:
         Used by `PowerStreamingClient` for SSE streaming connections
         where a dedicated, long-lived httpx.Client is needed.
         """
-        return self._config.make_client()
+        raise NotImplementedError
 
     def url(self, path: str) -> str:
         """Build the full URL for the given path.
 
         Used together with `make_client()` for streaming URLs.
         """
-        return self._config.url(path)
+        raise NotImplementedError
 
     @staticmethod
     def _check(resp: httpx.Response, operation: str) -> None:
         """Raise ZeusdError if the response is not 200."""
-        if resp.status_code != 200:
-            # Import here to avoid circular import at module level.
-            from zeus.device.exception import ZeusdError
-
-            raise ZeusdError(f"Failed to {operation}: {resp.text}")
+        raise NotImplementedError
 
 
 def require_capabilities(
@@ -582,38 +400,9 @@ def require_capabilities(
     Raises:
         ZeusdCapabilityError: If any requirement is not met.
     """
-    if client.auth_error:
-        raise ZeusdAuthError(client.auth_error)
-
-    errors: list[str] = []
-
-    if read_gpu and not client.can_read_gpu:
-        errors.append(_capability_reason(client, "gpu-read"))
-    if control_gpu and not client.can_control_gpu:
-        errors.append(_capability_reason(client, "gpu-control"))
-    if read_cpu and not client.can_read_cpu:
-        errors.append(_capability_reason(client, "cpu-read"))
-
-    if gpu_ids is not None:
-        available = set(client.gpu_ids)
-        missing = set(gpu_ids) - available
-        if missing:
-            errors.append(f"GPU indices {sorted(missing)} not available (available: {sorted(available)})")
-
-    if cpu_ids is not None:
-        available = set(client.cpu_ids)
-        missing = set(cpu_ids) - available
-        if missing:
-            errors.append(f"CPU indices {sorted(missing)} not available (available: {sorted(available)})")
-
-    if errors:
-        raise ZeusdCapabilityError(f"Zeusd at {client.endpoint}: " + "; ".join(errors))
+    raise NotImplementedError
 
 
 def _capability_reason(client: ZeusdClient, scope: str) -> str:
     """Build a human-readable reason why a capability is unavailable."""
-    if scope not in client._enabled_api_groups:
-        return f"API group '{scope}' is not enabled on this server"
-    if client.auth_required and scope not in client.granted_scopes:
-        return f"Token lacks required scope '{scope}' (granted: {sorted(client.granted_scopes)})"
-    return f"'{scope}' is not available"
+    raise NotImplementedError

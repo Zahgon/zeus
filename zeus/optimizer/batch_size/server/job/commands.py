@@ -50,11 +50,7 @@ class UpdateGeneratorState(BaseModel):
     @validator("state")
     def _validate_state(cls, state: str) -> str:
         """Validate the sanity of state."""
-        try:
-            np.random.default_rng(1).__setstate__(json.loads(state))
-            return state
-        except (TypeError, ValueError) as err:
-            raise ValueError(f"Invalid generator state ({state})") from err
+        pass
 
 
 class UpdateJobMinCost(BaseModel):
@@ -107,30 +103,7 @@ class CreateJob(GpuConfig, JobParams):
             - If default, exp_default, min batch sizes are correctly intialized.
             - If default batch size is in the list of batch sizes.
         """
-        state: str | None = values["mab_random_generator_state"]
-        mab_seed: int | None = values["mab_seed"]
-        bss: list[int] = values["batch_sizes"]
-        dbs: int = values["default_batch_size"]
-        ebs: int = values["exp_default_batch_size"]
-        mbs: int = values["min_cost_batch_size"]
-
-        if mab_seed is not None:
-            if state is None:
-                raise ValueError("mab_seed is not none, but generator state is none")
-            else:
-                try:
-                    np.random.default_rng(1).__setstate__(json.loads(state))
-                except (TypeError, ValueError) as err:
-                    raise ValueError(f"Invalid generator state ({state})") from err
-
-        if not (dbs == ebs == mbs):
-            raise ValueError(
-                f"During initialization, default_batch_size({dbs}), exp_default_batch_size({ebs}), min_batch_size({mbs}) should be all the same"
-            )
-        if dbs not in bss:
-            raise ValueError(f"default_batch_size({dbs}) is not in the batch size list({bss})")
-
-        return values
+        pass
 
     @classmethod
     def from_job_config(cls, js: JobSpecFromClient) -> "CreateJob":
@@ -138,20 +111,8 @@ class CreateJob(GpuConfig, JobParams):
 
         Initialize generator state, exp_default_batch_size, and min_cost_batch_size.
         """
-        d = js.dict()
-        d["exp_default_batch_size"] = js.default_batch_size
-        if js.mab_seed is not None:
-            rng = np.random.default_rng(js.mab_seed)
-            d["mab_random_generator_state"] = json.dumps(rng.__getstate__())
-        d["min_cost_batch_size"] = js.default_batch_size
-        return cls.parse_obj(d)
+        pass
 
     def to_orm(self) -> JobTable:
         """Convert pydantic model `CreateJob` to ORM object Job."""
-        d = self.dict()
-        job = JobTable()
-        for k, v in d.items():
-            if k != "batch_sizes":
-                setattr(job, k, v)
-        job.batch_sizes = [BatchSizeTable(job_id=self.job_id, batch_size=bs) for bs in self.batch_sizes]
-        return job
+        pass
